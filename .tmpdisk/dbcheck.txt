@@ -1,8 +1,0 @@
-=== tags per PUBLISHED article (min/max/avg) ===
-3|3|3.00
-=== published articles with <3 tags (should be 0) ===
-0
-=== published articles without cover (should be 0) ===
-0
-=== star-25 own tags ===
-3

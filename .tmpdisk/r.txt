@@ -1,2 +1,0 @@
-DELETE 1
---- tsc check above (empty=clean) ---

@@ -1,4 +1,0 @@
-pids_1337: 29554 
-total_rows: 132
-log_lines:     1164
-log_mtime: Jun 17 22:10:12 2026

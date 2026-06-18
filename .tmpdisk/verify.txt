@@ -1,9 +1,0 @@
-=== /star (page1) article cards ===
-  distinct article links: 0
-  has pagination (page/2 link): 0
-=== /star/page/2 ===
-  http: 000
-  distinct article links: 0
-=== article /star/star-25 tags (should be 3) ===
-  distinct tag links: 0
-  has cover: 0
