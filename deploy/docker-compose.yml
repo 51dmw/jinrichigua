@@ -1,0 +1,73 @@
+# VPS 一键起 Strapi + PostgreSQL (+ Redis)。§7。
+# 用法：在仓库根目录 `docker compose -f deploy/docker-compose.yml up -d`
+# 机密从 deploy/.env 读取（复制 deploy/.env.example）。
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-newsportal}
+      POSTGRES_USER: ${DATABASE_USERNAME:-strapi}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?set in deploy/.env}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DATABASE_USERNAME:-strapi}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # 仅容器内网可见，不对外暴露端口
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis_data:/data
+
+  cms:
+    build:
+      context: ..
+      dockerfile: apps/cms/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 1337
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${DATABASE_NAME:-newsportal}
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-strapi}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?}
+      DATABASE_SSL: 'false'
+      APP_KEYS: ${APP_KEYS:?}
+      API_TOKEN_SALT: ${API_TOKEN_SALT:?}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?}
+      TRANSFER_TOKEN_SALT: ${TRANSFER_TOKEN_SALT:?}
+      JWT_SECRET: ${JWT_SECRET:?}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?}
+      # CORS MUST 锁定前台域名（§7）
+      CORS_ORIGINS: ${CORS_ORIGINS:?https://example.com}
+      # 发布联动
+      WEB_REVALIDATE_URL: ${WEB_REVALIDATE_URL}
+      WEB_REVALIDATE_TOKEN: ${WEB_REVALIDATE_TOKEN}
+      # R2 媒体（可选）
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_ENDPOINT: ${R2_ENDPOINT:-}
+      R2_BUCKET: ${R2_BUCKET:-}
+      R2_PUBLIC_URL: ${R2_PUBLIC_URL:-}
+    volumes:
+      - cms_uploads:/app/apps/cms/public/uploads
+    ports:
+      # 只绑本机回环，由宿主 Nginx 反代 + TLS（§7）
+      - '127.0.0.1:1337:1337'
+
+volumes:
+  pg_data:
+  redis_data:
+  cms_uploads:

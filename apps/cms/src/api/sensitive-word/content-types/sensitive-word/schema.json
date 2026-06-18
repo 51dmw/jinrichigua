@@ -1,0 +1,28 @@
+{
+  "kind": "collectionType",
+  "collectionName": "sensitive_words",
+  "info": {
+    "singularName": "sensitive-word",
+    "pluralName": "sensitive-words",
+    "displayName": "敏感词",
+    "description": "敏感词库（§6：提交/发布前校验标题+正文）"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "word": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "note": {
+      "type": "string"
+    }
+  }
+}

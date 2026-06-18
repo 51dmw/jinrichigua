@@ -1,0 +1,32 @@
+{
+  "collectionName": "components_layout_home_blocks",
+  "info": {
+    "displayName": "Home Block",
+    "icon": "grid",
+    "description": "首页区块：标题 + 频道 + 版式 + 取数量（§5 区块顺序/variant 数据驱动）"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "channel": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::channel.channel"
+    },
+    "variant": {
+      "type": "enumeration",
+      "enum": ["hero", "image-top", "left-text-right-image", "three-image", "text-only"],
+      "default": "left-text-right-image",
+      "required": true
+    },
+    "limit": {
+      "type": "integer",
+      "default": 4,
+      "min": 1,
+      "max": 20
+    }
+  }
+}

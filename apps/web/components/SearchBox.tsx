@@ -1,0 +1,41 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+
+/** 站内搜索框。提交跳转 /search?q=...（q 为搜索词，非分页参数）。 */
+export function SearchBox({ initial = '', className = '' }: { initial?: string; className?: string }) {
+  const router = useRouter();
+  const [q, setQ] = useState(initial);
+
+  return (
+    <form
+      role="search"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const t = q.trim();
+        if (t) router.push(`/search?q=${encodeURIComponent(t)}`);
+      }}
+      className={`flex items-center ${className}`}
+    >
+      <input
+        type="search"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="搜索新闻"
+        aria-label="站内搜索"
+        className="h-8 w-full rounded-l-full border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:border-brand"
+      />
+      <button
+        type="submit"
+        aria-label="搜索"
+        className="flex h-8 shrink-0 items-center rounded-r-full bg-brand px-3 text-white"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="11" cy="11" r="7" />
+          <path d="M21 21l-4-4" strokeLinecap="round" />
+        </svg>
+      </button>
+    </form>
+  );
+}

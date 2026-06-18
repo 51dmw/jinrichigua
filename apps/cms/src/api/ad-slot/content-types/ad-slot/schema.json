@@ -1,0 +1,49 @@
+{
+  "kind": "collectionType",
+  "collectionName": "ad_slots",
+  "info": {
+    "singularName": "ad-slot",
+    "pluralName": "ad-slots",
+    "displayName": "广告位",
+    "description": "推荐位 / 广告位（按位置 key 投放）"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "key": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "title": {
+      "type": "string"
+    },
+    "image": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "allowedTypes": ["images"]
+    },
+    "format": {
+      "type": "enumeration",
+      "enum": ["leaderboard", "in-feed", "rectangle", "half-page", "anchor"],
+      "default": "leaderboard",
+      "required": true
+    },
+    "link": {
+      "type": "string"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "startAt": {
+      "type": "datetime"
+    },
+    "endAt": {
+      "type": "datetime"
+    }
+  }
+}

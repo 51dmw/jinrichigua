@@ -1,0 +1,9 @@
+<svg viewBox="0 0 172 36" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="今日吃瓜">
+  <g transform="translate(17,11)">
+    <path d="M -15 0 L 15 0 A 15 15 0 0 1 -15 0 Z" fill="#ffffff"/>
+    <ellipse cx="-7" cy="6" rx="1.5" ry="2.1" fill="#c1272d"/>
+    <ellipse cx="0" cy="8.8" rx="1.5" ry="2.1" fill="#c1272d"/>
+    <ellipse cx="7" cy="6" rx="1.5" ry="2.1" fill="#c1272d"/>
+  </g>
+  <text x="40" y="27" font-family="'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="26" font-weight="700" fill="#ffffff">今日吃瓜</text>
+</svg>

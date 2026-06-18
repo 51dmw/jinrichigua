@@ -1,0 +1,16 @@
+[2026-06-17 22:34:51.609] [32minfo[39m: [bootstrap] demo articles topped up to 30/频道（新增 0）
+[2026-06-17 22:34:52.039] [32minfo[39m: [bootstrap] tagged 264 demo article(s) with 3 tags each
+published: 330
+tags-with-articles: 14
+per-channel published:
+campus|30
+dirt|30
+history|30
+influencer|30
+inside|30
+love|30
+oversea|30
+society|30
+sports|30
+star|30
+video|30

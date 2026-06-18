@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-gray-50 text-gray-900 antialiased;
+}
+
+/* 文章正文排版（最小版） */
+.article-body {
+  @apply text-[15px] leading-7 text-gray-800;
+}
+.article-body h1 {
+  @apply mb-3 mt-5 text-xl font-bold;
+}
+.article-body h2 {
+  @apply mb-2 mt-4 text-lg font-bold;
+}
+.article-body p {
+  @apply my-3;
+}
+.article-body img {
+  @apply my-3 h-auto max-w-full rounded;
+}

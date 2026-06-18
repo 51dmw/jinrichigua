@@ -1,0 +1,5 @@
+=== topUp/authors log ===
+[2026-06-17 22:26:09.712] [33mwarn[39m: [bootstrap] topUp skipped: Invalid relations
+[2026-06-17 22:26:09.858] [32minfo[39m: [bootstrap] authors ensured
+total_rows: 132
+published: 66

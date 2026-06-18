@@ -1,0 +1,23 @@
+{
+  "name": "newsportal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "移动优先多频道新闻门户 — Strapi 5 (CMS) + Next.js 15 (web)，前后端解耦。",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter ./apps/* dev",
+    "dev:cms": "pnpm --filter cms develop",
+    "dev:web": "pnpm --filter web dev",
+    "build": "pnpm --filter shared build && pnpm --filter cms build && pnpm --filter web build",
+    "build:web": "pnpm --filter shared build && pnpm --filter web build",
+    "build:cms": "pnpm --filter cms build",
+    "lint": "pnpm --filter web lint",
+    "typecheck": "pnpm -r --filter ./packages/* --filter web typecheck"
+  },
+  "devDependencies": {
+    "prettier": "3.4.2"
+  }
+}

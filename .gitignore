@@ -1,0 +1,39 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# env (MUST NOT commit secrets — §1)
+.env
+.env.local
+.env.*.local
+
+# build output
+dist/
+.next/
+.open-next/
+.turbo/
+
+# cloudflare / wrangler
+.dev.vars
+.wrangler/
+cloudflare-env.d.ts
+
+# local tmp / scratch（部署脚手架阶段产生）
+.tmp/
+.devtoken
+.*.txt
+.*.html
+
+# strapi
+apps/cms/.cache/
+apps/cms/build/
+apps/cms/.strapi/
+apps/cms/.tmp/
+apps/cms/public/uploads/*
+!apps/cms/public/uploads/.gitkeep
+apps/cms/types/generated/
+
+# misc
+.DS_Store
+*.log
+coverage/

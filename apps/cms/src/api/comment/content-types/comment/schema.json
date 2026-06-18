@@ -1,0 +1,34 @@
+{
+  "kind": "collectionType",
+  "collectionName": "comments",
+  "info": {
+    "singularName": "comment",
+    "pluralName": "comments",
+    "displayName": "评论",
+    "description": "文章评论（先审后发 + 敏感词，§6）"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "content": {
+      "type": "text",
+      "required": true,
+      "maxLength": 1000
+    },
+    "authorName": {
+      "type": "string",
+      "maxLength": 50
+    },
+    "approved": {
+      "type": "boolean",
+      "default": false
+    },
+    "article": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::article.article"
+    }
+  }
+}

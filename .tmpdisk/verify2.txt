@@ -1,0 +1,6 @@
+page1 distinct articles: 24
+page1 has page/2 link: 1
+page2 http: 200
+page2 distinct articles: 14
+article star-25 tag links: 13
+article star-25 has cover: 1

@@ -1,0 +1,45 @@
+# Nginx 反代 + TLS（Let's Encrypt）给 Strapi（§7）。
+# 把 cms.example.com 换成你的后台域名，放到 /etc/nginx/sites-available/ 并软链 enabled。
+# 证书：certbot --nginx -d cms.example.com
+
+# HTTP → HTTPS
+server {
+    listen 80;
+    server_name cms.example.com;
+    location /.well-known/acme-challenge/ { root /var/www/certbot; }
+    location / { return 301 https://$host$request_uri; }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name cms.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/cms.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/cms.example.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    # 上传体积（媒体库）
+    client_max_body_size 64M;
+
+    # Strapi admin SHOULD 加 IP 允许名单（§7）
+    location /admin {
+        allow 203.0.113.0/24;   # ← 换成你的办公/家庭出口 IP
+        allow 127.0.0.1;
+        deny all;
+        proxy_pass http://127.0.0.1:1337;
+        include /etc/nginx/proxy_params;
+    }
+
+    # /api 与上传文件对外开放（前台读数 + 图片）
+    location / {
+        proxy_pass http://127.0.0.1:1337;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}

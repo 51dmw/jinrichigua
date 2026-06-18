@@ -1,0 +1,19 @@
+{
+  "collectionName": "components_seo_robots",
+  "info": {
+    "displayName": "Robots",
+    "icon": "shield",
+    "description": "robots 指令（index/follow 布尔）"
+  },
+  "options": {},
+  "attributes": {
+    "index": {
+      "type": "boolean",
+      "default": true
+    },
+    "follow": {
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

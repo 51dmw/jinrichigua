@@ -1,0 +1,7 @@
+# Cloudflare 本地预览的机密（复制为 apps/web/.dev.vars，勿提交）。
+# 线上用： wrangler secret put REVALIDATE_TOKEN  等
+
+REVALIDATE_TOKEN=changeme-shared-with-cms
+INDEXNOW_KEY=
+# 若 Strapi 收紧了 public 读权限再填：
+STRAPI_API_TOKEN=

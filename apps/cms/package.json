@@ -1,0 +1,38 @@
+{
+  "name": "cms",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Strapi 5 CMS — 新闻门户后台（部署到 VPS）。",
+  "scripts": {
+    "build": "strapi build",
+    "develop": "strapi develop",
+    "dev": "strapi develop",
+    "start": "strapi start",
+    "strapi": "strapi",
+    "deploy": "strapi deploy",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@strapi/plugin-cloud": "5.7.0",
+    "@strapi/plugin-seo": "^2.0.5",
+    "@strapi/plugin-users-permissions": "5.7.0",
+    "@strapi/strapi": "5.7.0",
+    "@strapi/utils": "5.7.0",
+    "pg": "8.13.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "styled-components": "^6.1.13"
+  },
+  "devDependencies": {
+    "@strapi/typescript-utils": "5.7.0",
+    "@types/node": "^20",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "typescript": "5.7.3"
+  },
+  "engines": {
+    "node": ">=18.0.0 <=22.x.x",
+    "npm": ">=6.0.0"
+  }
+}

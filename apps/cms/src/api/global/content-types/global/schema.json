@@ -1,0 +1,64 @@
+{
+  "kind": "singleType",
+  "collectionName": "globals",
+  "info": {
+    "singularName": "global",
+    "pluralName": "globals",
+    "displayName": "站点设置",
+    "description": "站点全局设置（站名/标题模板/默认 SEO/站长验证/ICP）"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "siteName": {
+      "type": "string",
+      "required": true,
+      "default": "News Portal"
+    },
+    "titleTemplate": {
+      "type": "string",
+      "default": "%s | News Portal"
+    },
+    "homeIntro": {
+      "type": "text",
+      "maxLength": 600
+    },
+    "disclaimer": {
+      "type": "text",
+      "maxLength": 600
+    },
+    "defaultOgImage": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "allowedTypes": ["images"]
+    },
+    "defaultRobots": {
+      "type": "component",
+      "repeatable": false,
+      "component": "seo.robots"
+    },
+    "googleSiteVerification": {
+      "type": "string"
+    },
+    "yandexSiteVerification": {
+      "type": "string"
+    },
+    "bingSiteVerification": {
+      "type": "string"
+    },
+    "yandexMetricaId": {
+      "type": "string"
+    },
+    "icpRecord": {
+      "type": "string"
+    },
+    "defaultSeo": {
+      "type": "component",
+      "repeatable": false,
+      "component": "seo.meta-data"
+    }
+  }
+}

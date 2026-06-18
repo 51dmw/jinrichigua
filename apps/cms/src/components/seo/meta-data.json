@@ -1,0 +1,55 @@
+{
+  "collectionName": "components_seo_meta_data",
+  "info": {
+    "displayName": "Meta Data",
+    "icon": "search",
+    "description": "SEO 元数据组件，复用于 Article / Channel / Global（§3）"
+  },
+  "options": {},
+  "attributes": {
+    "metaTitle": {
+      "type": "string",
+      "maxLength": 70
+    },
+    "metaDescription": {
+      "type": "text",
+      "maxLength": 160
+    },
+    "keywords": {
+      "type": "text"
+    },
+    "canonicalURL": {
+      "type": "string"
+    },
+    "robots": {
+      "type": "component",
+      "repeatable": false,
+      "component": "seo.robots"
+    },
+    "ogTitle": {
+      "type": "string"
+    },
+    "ogDescription": {
+      "type": "text"
+    },
+    "ogImage": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "allowedTypes": ["images"]
+    },
+    "twitterCard": {
+      "type": "enumeration",
+      "enum": ["summary", "summary_large_image"],
+      "default": "summary_large_image"
+    },
+    "structuredDataType": {
+      "type": "enumeration",
+      "enum": ["NewsArticle", "Article", "none"],
+      "default": "NewsArticle"
+    },
+    "structuredDataJSON": {
+      "type": "json"
+    }
+  }
+}

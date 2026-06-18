@@ -1,0 +1,3 @@
+src/index.ts(235,13): error TS18004: No value exists in scope for the shorthand property 'tags'. Either declare one or provide an initializer.
+=== tsc ===
+topUp flag set?: 1

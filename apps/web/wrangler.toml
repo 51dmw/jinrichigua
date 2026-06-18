@@ -1,0 +1,35 @@
+# Cloudflare Workers 部署（§7）。
+# 部署：pnpm --filter web deploy   本地预览：pnpm --filter web preview
+#
+# compatibility_date MUST ≥ 2024-09-23，并开 nodejs_compat（§7）。
+name = "newsportal-web"
+main = ".open-next/worker.js"
+compatibility_date = "2024-12-30"
+compatibility_flags = ["nodejs_compat"]
+
+# Workers 静态资源（OpenNext 产物）
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+# ISR 增量缓存 → Workers KV（MUST，§7）
+# 先建命名空间： wrangler kv namespace create NEXT_INC_CACHE_KV
+# 把返回的 id 填进下面：
+[[kv_namespaces]]
+binding = "NEXT_INC_CACHE_KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# 非机密公开变量（机密用 `wrangler secret put`，见 .dev.vars.example）
+[vars]
+SITE_URL = "https://example.com"
+STRAPI_API_URL = "https://cms.example.com"
+SITE_LOCALE = "zh-CN"
+REVALIDATE_SECONDS = "120"
+
+# 可选：静态资源/缓存放 R2（§7「静态资源可配 R2」）
+# [[r2_buckets]]
+# binding = "NEXT_INC_CACHE_R2"
+# bucket_name = "newsportal-cache"
+
+[observability]
+enabled = true

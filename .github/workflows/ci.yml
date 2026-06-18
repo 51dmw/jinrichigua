@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared types
+        run: pnpm --filter shared build
+
+      - name: Typecheck
+        run: |
+          pnpm --filter shared typecheck
+          pnpm --filter web typecheck
+          pnpm --filter cms typecheck
+
+      - name: Lint web
+        run: pnpm --filter web lint
+
+      # 前台无需 Strapi 也能构建：取数失败回退空，generateStaticParams 返回 []
+      - name: Build web
+        run: pnpm --filter web build
+        env:
+          SITE_URL: https://example.com
+          STRAPI_API_URL: http://localhost:1337
