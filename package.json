@@ -15,7 +15,8 @@
     "build:web": "pnpm --filter shared build && pnpm --filter web build",
     "build:cms": "pnpm --filter cms build",
     "lint": "pnpm --filter web lint",
-    "typecheck": "pnpm -r --filter ./packages/* --filter web typecheck"
+    "typecheck": "pnpm -r --filter ./packages/* --filter web typecheck",
+    "save": "bash scripts/save.sh"
   },
   "devDependencies": {
     "prettier": "3.4.2"
