@@ -10,7 +10,8 @@ import { mediaUrl } from './strapi';
 
 function abs(path: string): string {
   if (path.startsWith('http')) return path;
-  // 根路径统一为无尾斜杠的站点根（与 Next 规范化后的 canonical 一致）
+  // 全站统一「无尾斜杠」规范（与 middleware 规范化 + trailingSlash:false 一致）。
+  // 根路径返回站点根（无尾斜杠）；Next 也会对 canonical 强制去尾斜杠，保持一致。
   if (path === '/' || path === '') return SITE_URL;
   return `${SITE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
 }
