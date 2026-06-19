@@ -21,6 +21,7 @@ export default [
   'strapi::poweredBy',
   'strapi::query',
   'strapi::body',
+  'global::convert-upload-webp', // 上传图片落盘前自动转 WebP（须在 body 解析之后）
   'strapi::session',
   'strapi::favicon',
   'strapi::public',
