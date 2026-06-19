@@ -2,7 +2,7 @@
  * 评论 lifecycle（§6 + 防刷/反垃圾）。
  * - 先审后发：approved=false。
  * - 文本规范化后再匹配（抗全角/零宽/空格绕过）。
- * - 内容 + 昵称 同时过滤：链接 / 混淆链接 / 联系方式 / 广告词 / 敏感词。
+ * - 内容 + 昵称 同时过滤：链接 / 混淆链接 / 联系方式 / 广告词 / 长串数字 / 敏感词。
  * - 低质拦截：纯符号表情 / 重复字符刷屏。
  */
 import { errors } from '@strapi/utils';
@@ -42,6 +42,12 @@ function assertClean(raw: string, field: string) {
   const ad = AD_WORDS.find((w) => compact.includes(normalize(w).replace(/\s+/g, '')));
   if (ad) {
     throw new errors.ApplicationError(`${field}包含疑似广告内容`);
+  }
+  // 长串连续数字（QQ / 手机号 / 引流号）：去常见分隔符后，≥6 位连续数字即拦。
+  // 全角数字已在 normalize 转半角；年份/集数/价格（≤5 位）不受影响。
+  const digitSeq = compact.replace(/[-.·•_/\\|＋+]/g, '');
+  if (/\d{6,}/.test(digitSeq)) {
+    throw new errors.ApplicationError(`${field}不允许包含长串数字（疑似 QQ／手机号等联系方式）`);
   }
 }
 
