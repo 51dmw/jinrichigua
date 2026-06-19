@@ -20,7 +20,9 @@ export async function tagMeta(slug: string, page: number): Promise<Metadata> {
     seo: tag?.seo,
     global,
     fallbackTitle: page > 1 ? `${name} - 第 ${page} 页` : name,
-    fallbackDescription: tag?.description,
+    // 标签量大无法逐个填描述：无 tag.description 时用模板兜底，保证每个标签页都有独特 meta。
+    fallbackDescription:
+      tag?.description ?? `「${name}」相关的最新吃瓜、爆料与热点资讯，尽在今日吃瓜第一时间追踪。`,
     path: base,
     canonicalPath: pageHref(base, page),
   });
