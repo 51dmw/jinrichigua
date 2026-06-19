@@ -18,8 +18,7 @@
     },
     "slug": {
       "type": "uid",
-      "targetField": "name",
-      "required": true
+      "targetField": "name"
     },
     "description": {
       "type": "text",
