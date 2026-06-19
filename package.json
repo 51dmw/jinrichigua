@@ -20,5 +20,10 @@
   },
   "devDependencies": {
     "prettier": "3.4.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "sharp": "0.32.6"
+    }
   }
 }

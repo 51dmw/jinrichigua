@@ -1,6 +1,10 @@
 export default ({ env }) => ({
   host: env('HOST', '0.0.0.0'),
   port: env.int('PORT', 1337),
+  // 公开 URL（反代 + Cloudflare TLS 终止）。admin 跳转/媒体绝对地址用它。
+  url: env('URL', ''),
+  // 信任反代的 X-Forwarded-* 头（Cloudflare→Nginx→Strapi），否则 https 重定向出错。
+  proxy: true,
   app: {
     keys: env.array('APP_KEYS'),
   },
