@@ -685,6 +685,101 @@ async function ensureAuthors(strapi: StrapiApp) {
   }
 }
 
+// ── 后台字段中文标签（仅改「显示标签」，不改字段名 / 不影响 API 与前台）──
+// 写入 content-manager 配置（core-store）里 metadatas[字段].edit/list.label。
+// 仅作用于本项目 api::* 内容类型与自定义组件；admin::/plugin::（用户、文件、角色等系统类型）不动。
+const FIELD_LABELS_BASE: Record<string, string> = {
+  // 通用
+  title: '标题', slug: 'URL 别名', summary: '摘要', content: '正文', body: '正文内容',
+  cover: '封面图', image: '图片', name: '名称', description: '描述', note: '备注',
+  order: '排序', enabled: '是否启用',
+  // 系统字段
+  id: 'ID', createdAt: '创建时间', updatedAt: '更新时间',
+  createdBy: '创建人', updatedBy: '更新人', publishedAt: '发布时间',
+  // 文章
+  channel: '所属频道', tags: '标签', author: '作者署名', authorRef: '关联作者',
+  source: '来源', publishAt: '定时发布时间', reviewState: '审核状态',
+  reviewNote: '审核备注', viewCount: '浏览量', seo: 'SEO 设置',
+  // 频道
+  isNav: '显示在导航', parent: '上级频道', children: '下级频道', articles: '关联文章',
+  // 作者
+  role: '角色／头衔', bio: '简介', avatar: '头像',
+  // 广告位
+  key: '位置标识', format: '广告格式', link: '跳转链接', startAt: '开始时间', endAt: '结束时间',
+  // 评论
+  authorName: '昵称', approved: '已审核', article: '所属文章',
+  // 敏感词
+  word: '敏感词',
+  // 首页编排
+  blocks: '首页区块',
+  // 站点设置
+  siteName: '站点名称', titleTemplate: '标题模板', homeIntro: '首页简介',
+  disclaimer: '免责声明', defaultOgImage: '默认分享图', defaultRobots: '默认抓取设置',
+  googleSiteVerification: 'Google 站点验证', yandexSiteVerification: 'Yandex 站点验证',
+  bingSiteVerification: 'Bing 站点验证', yandexMetricaId: 'Yandex 统计 ID',
+  icpRecord: 'ICP 备案号', defaultSeo: '默认 SEO',
+  // SEO 组件
+  metaTitle: 'SEO 标题', metaDescription: 'SEO 描述', keywords: '关键词',
+  canonicalURL: '规范链接 (canonical)', robots: '抓取指令', ogTitle: '分享标题',
+  ogDescription: '分享描述', ogImage: '分享图', twitterCard: 'Twitter 卡片',
+  structuredDataType: '结构化数据类型', structuredDataJSON: '结构化数据 (JSON)',
+  index: '允许索引', follow: '允许跟踪',
+  // 首页区块组件
+  variant: '版式', limit: '取数量',
+};
+// 同名字段在特定组件下的语义覆盖（避免歧义）
+const FIELD_LABELS_OVERRIDE: Record<string, Record<string, string>> = {
+  'components::layout.home-block': { title: '区块标题', channel: '频道' },
+};
+
+async function ensureChineseFieldLabels(strapi: StrapiApp) {
+  const store = strapi.store({ type: 'type', name: 'setup' });
+  if (await store.get({ key: 'cnFieldLabelsV2HasRun' })) return;
+
+  const PREFIXES = [
+    'plugin_content_manager_configuration_content_types::api::', // 仅本项目内容类型
+    'plugin_content_manager_configuration_components::', // 自定义组件
+  ];
+  const q = strapi.db.query('strapi::core-store');
+  let touched = 0;
+  for (const prefix of PREFIXES) {
+    const rows = await q.findMany({ where: { key: { $startsWith: prefix } } });
+    for (const row of rows) {
+      let cfg: any;
+      try {
+        cfg = JSON.parse(row.value);
+      } catch {
+        continue;
+      }
+      const uid = row.key
+        .replace('plugin_content_manager_configuration_content_types::', '')
+        .replace('plugin_content_manager_configuration_components::', 'components::');
+      const override = FIELD_LABELS_OVERRIDE[uid] ?? {};
+      const metas = cfg.metadatas ?? {};
+      let changed = false;
+      for (const field of Object.keys(metas)) {
+        const label = override[field] ?? FIELD_LABELS_BASE[field];
+        if (!label) continue;
+        const m = metas[field];
+        if (m?.edit && m.edit.label !== label) {
+          m.edit.label = label;
+          changed = true;
+        }
+        if (m?.list && m.list.label !== label) {
+          m.list.label = label;
+          changed = true;
+        }
+      }
+      if (changed) {
+        await q.update({ where: { id: row.id }, data: { value: JSON.stringify(cfg) } });
+        touched += 1;
+      }
+    }
+  }
+  await store.set({ key: 'cnFieldLabelsV2HasRun', value: true });
+  strapi.log.info(`[bootstrap] 已应用后台字段中文标签（更新 ${touched} 个配置）`);
+}
+
 export default {
   register({ strapi }: { strapi: StrapiApp }) {
     // 发布守卫需在内容操作前注册（§6）
@@ -706,6 +801,7 @@ export default {
       await ensureAuthors(strapi); // 作者实体（E-E-A-T）
       await ensureDemoArticleTags(strapi); // 给演示文章挂 3 个标签（须在 ensureAuthors 后，文章已发布）
       await ensureDevToken(strapi); // 仅开发测试
+      await ensureChineseFieldLabels(strapi); // 后台字段中文显示标签（A：不改字段名/不动 API）
       if (!initHasRun) {
         await seedContent(strapi);
         await store.set({ key: 'initHasRun', value: true });

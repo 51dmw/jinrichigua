@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { useState } from 'react';
+import { AD_LINK_REL, AD_LINK_TARGET } from '@/lib/adFormats';
 
 /**
  * 移动端底部悬浮广告条（仅移动：lg:hidden）。可关闭，关闭后本会话不再出现。
@@ -39,8 +40,8 @@ export function AdAnchorBar({
       ) : (
         <a
           href={href || '#'}
-          target="_blank"
-          rel="noopener noreferrer sponsored"
+          target={AD_LINK_TARGET}
+          rel={AD_LINK_REL}
           className="relative block w-full max-w-[320px] overflow-hidden rounded bg-white shadow"
           style={{ aspectRatio: '320 / 50' }}
           aria-label={`广告：${title ?? '推广'}`}

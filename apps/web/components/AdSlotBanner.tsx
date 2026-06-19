@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import { getAdSlot, mediaUrl, imageAlt } from '@/lib/strapi';
-import { adFormatSpec, formatForSlot } from '@/lib/adFormats';
+import { adFormatSpec, formatForSlot, AD_LINK_REL, AD_LINK_TARGET } from '@/lib/adFormats';
 import { ADS_PLACEHOLDER } from '@/lib/env';
 
 /**
@@ -20,8 +20,8 @@ export async function AdSlotBanner({ slotKey }: { slotKey: string }) {
       <div className={spec.visibility}>
         <a
           href={slot.link || '#'}
-          target="_blank"
-          rel="noopener noreferrer sponsored"
+          target={AD_LINK_TARGET}
+          rel={AD_LINK_REL}
           className="mb-3 mx-auto block w-full overflow-hidden rounded-lg bg-white"
           style={{ maxWidth: spec.maxWidth ?? undefined }}
           aria-label={`广告：${slot.title ?? '推广'}`}

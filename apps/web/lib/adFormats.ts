@@ -1,6 +1,16 @@
 import type { AdFormat } from 'shared';
 
 /**
+ * 广告外链的 SEO 友好默认属性（全站广告链接唯一来源）。
+ * - rel="sponsored"：向 Google 声明这是「付费/广告链接」（Google 对广告链接的硬性要求）；
+ * - nofollow：不传递权重（与 sponsored 双保险，兼容旧爬虫）；
+ * - noopener noreferrer：新窗口打开时阻止 window.opener 劫持并不泄露来源（安全）。
+ * 配合 target="_blank" 使用。
+ */
+export const AD_LINK_REL = 'sponsored nofollow noopener noreferrer';
+export const AD_LINK_TARGET = '_blank';
+
+/**
  * 广告位标准尺寸表（§M6）——所有广告占位的唯一来源。
  * 每种格式固定宽高比 + next/image sizes，渲染前即预留高度 → CLS≈0。
  * 运营在后台选 format 即所见即所得，无需研发改代码。
