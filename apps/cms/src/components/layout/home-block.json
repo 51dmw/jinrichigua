@@ -1,7 +1,7 @@
 {
   "collectionName": "components_layout_home_blocks",
   "info": {
-    "displayName": "Home Block",
+    "displayName": "首页区块",
     "icon": "grid",
     "description": "首页区块：标题 + 频道 + 版式 + 取数量（§5 区块顺序/variant 数据驱动）"
   },

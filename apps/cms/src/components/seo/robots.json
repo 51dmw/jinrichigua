@@ -1,7 +1,7 @@
 {
   "collectionName": "components_seo_robots",
   "info": {
-    "displayName": "Robots",
+    "displayName": "抓取指令",
     "icon": "shield",
     "description": "robots 指令（index/follow 布尔）"
   },

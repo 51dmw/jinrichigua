@@ -1,7 +1,7 @@
 {
   "collectionName": "components_seo_meta_data",
   "info": {
-    "displayName": "Meta Data",
+    "displayName": "SEO 元数据",
     "icon": "search",
     "description": "SEO 元数据组件，复用于 Article / Channel / Global（§3）"
   },
