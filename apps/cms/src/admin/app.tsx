@@ -112,6 +112,21 @@ export default {
     },
   },
   register(app: any) {
+    // 禁止浏览器自动翻译后台：界面改为简体中文后，Chrome/Edge 会把页面再翻译一遍，
+    // 用 <font> 包裹并替换文本节点 —— 这绕过了 React 的 DOM 记账。当 React 之后卸载
+    // 这些子树时，调 removeChild 的节点已被浏览器移走，抛
+    // 「NotFoundError: removeChild … not a child」并白屏。下面三行声明本页不可翻译。
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('translate', 'no');
+      document.documentElement.classList.add('notranslate');
+      if (!document.querySelector('meta[name="google"][content="notranslate"]')) {
+        const meta = document.createElement('meta');
+        meta.name = 'google';
+        meta.content = 'notranslate';
+        document.head.appendChild(meta);
+      }
+    }
+
     // 左侧菜单加「批量添加标签」入口 → 自定义页面（调 admin 路由 /tags-bulk-create）。
     app.addMenuLink({
       to: '/bulk-tags',
