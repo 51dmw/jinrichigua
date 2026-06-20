@@ -4,7 +4,18 @@
  * 2) 翻译覆盖：补齐 Strapi 5.7 官方简体中文包**漏翻**的 content-manager 界面词
  *    （键取自 @strapi/content-manager 的 en 字典，前缀 `content-manager.`）。
  *    仅覆盖显示文案，不影响字段名/接口/数据。
+ * 3) 左侧菜单加「批量添加标签」自定义页面。
  */
+import * as React from 'react';
+
+// 内联「+」图标（不引 @strapi/icons —— 它非本包直接依赖，Rollup 解析不到）。
+const PlusIcon = () =>
+  React.createElement(
+    'svg',
+    { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 },
+    React.createElement('path', { d: 'M12 5v14M5 12h14', strokeLinecap: 'round' }),
+  );
+
 const zhOverrides: Record<string, string> = {
   // 左侧导航 / 插件名
   'content-manager.plugin.name': '内容管理',
@@ -45,6 +56,16 @@ export default {
     translations: {
       'zh-Hans': zhOverrides,
     },
+  },
+  register(app: any) {
+    // 左侧菜单加「批量添加标签」入口 → 自定义页面（调 admin 路由 /tags-bulk-create）。
+    app.addMenuLink({
+      to: '/bulk-tags',
+      icon: PlusIcon,
+      intlLabel: { id: 'bulk-tags.menu', defaultMessage: '批量添加标签' },
+      Component: () => import('./pages/BulkTags'),
+      position: 6,
+    });
   },
   bootstrap() {},
 };

@@ -924,6 +924,21 @@ export default {
   register({ strapi }: { strapi: StrapiApp }) {
     // 发布守卫需在内容操作前注册（§6）
     registerPublishGuard(strapi);
+
+    // 「批量添加标签」后台页面用的 admin 类型路由（走 admin 会话鉴权）。
+    // 注：src/api/*/routes 会被强制为 content-api，admin-JWT 无法调；故在此手动注册 admin 路由。
+    // content-api 路由 /api/tags/bulk-create 仍保留（供 API Token / curl 调用）。
+    strapi.server.routes({
+      type: 'admin',
+      routes: [
+        {
+          method: 'POST',
+          path: '/tags-bulk-create',
+          handler: 'api::tag.tag.bulkCreate',
+          config: { policies: [] },
+        },
+      ],
+    });
   },
 
   async bootstrap({ strapi }: { strapi: StrapiApp }) {
