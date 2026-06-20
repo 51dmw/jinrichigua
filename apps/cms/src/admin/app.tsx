@@ -94,28 +94,52 @@ const AutoTagPanel = ({ model, documentId }: { model?: string; documentId?: stri
   };
 };
 
-// 文章「审核状态」枚举值 → 中文显示 label。底层 value 仍是英文（draft/pending/approved/rejected），
-// 发布守卫、RBAC、lifecycle 都依赖这些英文值，绝不改动。
-const REVIEW_LABELS: Record<string, string> = {
+// 后台 5 个 enumeration 字段的「英文值 → 中文显示 label」总表。底层 value 全部保持英文，
+// 这些值被代码引用（reviewState→发布守卫/RBAC，variant→前端，format→adFormats，
+// twitterCard/structuredDataType→SEO），绝不改动；这里只做显示映射。
+// 注：19 个 value 全局唯一，故按 value 直接查表即可同时覆盖顶层字段与 component 嵌套字段
+//（variant/twitterCard/structuredDataType 在 component 里，name 带路径，按 value 查更稳）。
+const ENUM_LABELS: Record<string, string> = {
+  // 文章 reviewState（api::article.article）
   draft: '草稿',
   pending: '待审核',
   approved: '已通过',
   rejected: '已驳回',
+  // 首页区块 variant（component layout.home-block）
+  hero: '大图',
+  'image-top': '上图下标题',
+  'left-text-right-image': '左文右图',
+  'three-image': '三图并列',
+  'text-only': '纯文字',
+  // 广告位 format（api::ad-slot.ad-slot）
+  leaderboard: '横幅 728×90',
+  'in-feed': '信息流 1200×628',
+  rectangle: '矩形 300×250',
+  'half-page': '半屏 300×600',
+  anchor: '移动悬浮 320×50',
+  // SEO twitterCard（component seo.meta-data）
+  summary: '摘要卡',
+  summary_large_image: '大图摘要卡',
+  // SEO structuredDataType（component seo.meta-data）
+  NewsArticle: '新闻文章',
+  Article: '普通文章',
+  none: '不输出',
 };
 
 /**
  * 自定义 enumeration 输入控件，按 type 注册（app.addFields）。
  * Strapi 5.7 的自定义 input 只能按字段 type 注册、没有按字段名的入口，所以这里会接管后台
  * 所有 enum 字段：
- *   - 文章 reviewState：把英文值显示成中文 label；onChange 写回 / 回显的仍是英文 value。
- *   - 其它 enum（如 ad-slot.format）：label = value，保持英文，行为与内置一致。
+ *   - 值在 ENUM_LABELS 里（上述 5 个字段的 19 个值）→ 显示中文 label；
+ *     onChange 写回 / 回显的仍是英文 value，存储值不变。
+ *   - 不在表中的 enum 值 → label = value（保持英文），行为与内置一致。
  * 复刻内置 EnumerationInput 的结构（useField + Field.Root + SingleSelect），避免破坏表单。
  */
 const EnumerationInput = React.forwardRef<HTMLButtonElement, any>((props, ref) => {
   const { name, attribute, required, label, hint, labelAction, disabled } = props;
   const field = useField(name);
   const values: string[] = Array.isArray(attribute?.enum) ? attribute.enum : [];
-  const toLabel = (v: string) => (name === 'reviewState' ? REVIEW_LABELS[v] ?? v : v);
+  const toLabel = (v: string) => ENUM_LABELS[v] ?? v;
 
   return React.createElement(
     Field.Root,
@@ -173,6 +197,16 @@ const zhOverrides: Record<string, string> = {
   'content-manager.containers.edit.information.document.label': '创建于',
   'content-manager.containers.edit.information.last-draft.label': '更新于',
   'content-manager.containers.edit.information.last-published.label': '发布于',
+
+  // B：补 Strapi content-manager 自带英文词的中文覆盖（键取自 @strapi/content-manager en 字典）。
+  'content-manager.relation.add': '添加关联',
+  'content-manager.components.empty-repeatable': '暂无内容，点击添加',
+  'content-manager.link-to-ctb': '编辑模型',
+  // 文本字段「max. {…} characters」字数提示由两条拼成：text 模板（min./max.）+ 单位（character/characters）。
+  // 保持 ICU 占位结构不变，只把英文词换成中文。
+  'content-manager.form.Input.hint.text':
+    '{min, select, undefined {} other {最小 {min}}}{divider}{max, select, undefined {} other {最多 {max}}}{unit}{br}{description}',
+  'content-manager.form.Input.hint.character.unit': '{maxValue, plural, one { 字符} other { 字符}}',
 };
 
 export default {
