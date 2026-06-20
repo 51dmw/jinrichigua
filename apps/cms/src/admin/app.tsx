@@ -45,7 +45,8 @@ const AutoTagAction = ({ model, documentId }: { model?: string; documentId?: str
   return {
     label: '自动匹配标签',
     icon: React.createElement(TagIcon),
-    position: ['panel'] as const,
+    // 放编辑页顶部标题栏（与 保存/发布 同区），比 panel 的「⋯ 更多操作」下拉更显眼。
+    position: ['header'] as const,
     onClick: async () => {
       // 确认弹窗里说明一句：作用于已保存的正文。
       if (
