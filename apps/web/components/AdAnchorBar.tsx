@@ -31,7 +31,7 @@ export function AdAnchorBar({
     <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center bg-black/5 px-2 py-1 lg:hidden">
       {placeholder ? (
         <div
-          className="flex w-full max-w-[320px] items-center justify-center rounded border-2 border-dashed border-gray-300 bg-gray-50 text-[11px] text-gray-400"
+          className="flex w-full max-w-[320px] items-center justify-center rounded border-2 border-dashed border-gray-300 bg-gray-50 text-[11px] text-gray-500"
           style={{ aspectRatio: '320 / 50' }}
           aria-hidden="true"
         >

@@ -81,7 +81,7 @@ export function ArticleCard({
               {article.title}
             </Heading>
             {article.summary ? (
-              <p className="mt-0.5 line-clamp-1 text-xs text-gray-400">{article.summary}</p>
+              <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">{article.summary}</p>
             ) : null}
           </div>
         </article>
@@ -127,7 +127,7 @@ export function ArticleCard({
           <Heading className="line-clamp-2 text-base font-medium leading-snug text-gray-900">
             {article.title}
           </Heading>
-          <p className="mt-2 text-xs text-gray-400">
+          <p className="mt-2 text-xs text-gray-500">
             {article.channel?.name ?? ''} {article.source ? `· ${article.source}` : ''}
           </p>
         </div>

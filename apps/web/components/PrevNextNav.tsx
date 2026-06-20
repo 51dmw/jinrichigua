@@ -22,7 +22,7 @@ export function PrevNextNav({
           rel="prev"
           className="rounded-lg bg-white p-3 hover:bg-gray-50"
         >
-          <div className="mb-0.5 text-xs text-gray-400">‹ 上一篇</div>
+          <div className="mb-0.5 text-xs text-gray-500">‹ 上一篇</div>
           <div className="line-clamp-1 text-sm font-medium text-gray-800">{prev.title}</div>
         </Link>
       ) : (
@@ -34,7 +34,7 @@ export function PrevNextNav({
           rel="next"
           className="rounded-lg bg-white p-3 text-right hover:bg-gray-50"
         >
-          <div className="mb-0.5 text-xs text-gray-400">下一篇 ›</div>
+          <div className="mb-0.5 text-xs text-gray-500">下一篇 ›</div>
           <div className="line-clamp-1 text-sm font-medium text-gray-800">{next.title}</div>
         </Link>
       ) : (

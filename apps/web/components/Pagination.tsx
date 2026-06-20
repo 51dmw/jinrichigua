@@ -13,7 +13,7 @@ export function pageHref(basePath: string, page: number): string {
 
 const btn =
   'rounded border border-gray-200 bg-white px-3 py-1.5 text-gray-700 hover:bg-gray-50';
-const dim = 'px-3 py-1.5 text-gray-300';
+const dim = 'px-3 py-1.5 text-gray-500';
 
 export function Pagination({
   basePath,
@@ -47,7 +47,7 @@ export function Pagination({
       ) : (
         <span className={dim}>‹ 上一页</span>
       )}
-      <span className="text-xs text-gray-400">
+      <span className="text-xs text-gray-500">
         第 {page} / {effPageCount} 页 · 共 {total} 篇
       </span>
       {hasNext ? (

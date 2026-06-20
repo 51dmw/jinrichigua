@@ -49,7 +49,7 @@ export async function AdSlotBanner({ slotKey }: { slotKey: string }) {
   return (
     <div className={spec.visibility}>
       <div
-        className="mb-3 mx-auto flex w-full items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400"
+        className="mb-3 mx-auto flex w-full items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 text-gray-500"
         style={{ maxWidth: spec.maxWidth ?? undefined, aspectRatio: spec.ratio }}
         aria-hidden="true"
       >

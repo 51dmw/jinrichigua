@@ -19,12 +19,12 @@ export function Breadcrumb({ items, className = '' }: { items: Crumb[]; classNam
   return (
     <>
       <JsonLd data={breadcrumbJsonLd(crumbs)} />
-      <nav aria-label="面包屑" className={`mb-2 text-xs text-gray-400 ${className}`}>
+      <nav aria-label="面包屑" className={`mb-2 text-xs text-gray-500 ${className}`}>
         {crumbs.map((it, i) => {
           const last = i === crumbs.length - 1;
           return (
             <span key={it.path}>
-              {i > 0 ? <span className="mx-1 text-gray-300">/</span> : null}
+              {i > 0 ? <span className="mx-1 text-gray-500">/</span> : null}
               {last ? (
                 <span className="font-medium text-gray-600" aria-current="page">
                   {it.name}
@@ -32,7 +32,7 @@ export function Breadcrumb({ items, className = '' }: { items: Crumb[]; classNam
               ) : (
                 <Link
                   href={it.path}
-                  className="text-gray-400 underline-offset-2 transition-colors hover:text-brand hover:underline"
+                  className="text-gray-500 underline-offset-2 transition-colors hover:text-brand hover:underline"
                 >
                   {it.name}
                 </Link>

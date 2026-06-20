@@ -75,7 +75,7 @@ export default async function SearchPage({ searchParams }: { searchParams: SP })
                     >
                       <span
                         className={`w-4 shrink-0 text-center text-sm font-bold italic ${
-                          i < 3 ? 'text-brand' : 'text-gray-300'
+                          i < 3 ? 'text-brand' : 'text-gray-500'
                         }`}
                       >
                         {i + 1}
@@ -122,7 +122,7 @@ export default async function SearchPage({ searchParams }: { searchParams: SP })
         </p>
       ) : (
         <>
-          <p className="mb-2 px-1 text-xs text-gray-400">
+          <p className="mb-2 px-1 text-xs text-gray-500">
             「{term}」的结果 · 共 {search.total} 条
           </p>
           <div className="divide-y divide-gray-100 rounded-lg bg-white px-3">

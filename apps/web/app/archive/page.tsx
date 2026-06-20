@@ -40,7 +40,7 @@ export default async function ArchivePage() {
               <section key={y.year} className="rounded-lg bg-white p-4">
                 <div className="mb-3 flex items-baseline gap-2 border-b border-gray-100 pb-2">
                   <h2 className="text-base font-bold text-gray-900">{y.year} 年</h2>
-                  <span className="text-xs text-gray-400">{y.total} 篇</span>
+                  <span className="text-xs text-gray-500">{y.total} 篇</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {y.months.map((m) => (
@@ -50,7 +50,7 @@ export default async function ArchivePage() {
                       className="flex items-baseline gap-1.5 rounded bg-gray-100 px-3 py-1.5 text-sm text-gray-700 transition hover:bg-brand/10 hover:text-brand"
                     >
                       <span>{m.month} 月</span>
-                      <span className="text-xs text-gray-400">{m.count}</span>
+                      <span className="text-xs text-gray-500">{m.count}</span>
                     </Link>
                   ))}
                 </div>
