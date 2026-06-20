@@ -26,6 +26,13 @@ export default {
       config: { policies: [] },
     },
     {
+      // 自动匹配标签（需 RBAC 权限 / API Token，非公开写）。
+      method: 'POST',
+      path: '/articles/:documentId/auto-tag',
+      handler: 'article.autoTag',
+      config: { policies: [] },
+    },
+    {
       method: 'GET',
       path: '/articles-stats',
       handler: 'article.stats',

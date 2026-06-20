@@ -4,7 +4,63 @@
  * 2) 翻译覆盖：补齐 Strapi 5.7 官方简体中文包**漏翻**的 content-manager 界面词
  *    （键取自 @strapi/content-manager 的 en 字典，前缀 `content-manager.`）。
  *    仅覆盖显示文案，不影响字段名/接口/数据。
+ * 3) 文章编辑页加「自动匹配标签」Document Action 按钮。
  */
+import * as React from 'react';
+import { useFetchClient, useNotification } from '@strapi/strapi/admin';
+
+const ARTICLE_UID = 'api::article.article';
+
+// 内联标签图标（不引 @strapi/icons —— 非本包直接依赖，Rollup 解析不到）。
+const TagIcon = () =>
+  React.createElement(
+    'svg',
+    { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 },
+    React.createElement('path', {
+      d: 'M20.59 13.41 11 3.83V8a3 3 0 0 1-3 3H3.83l9.58 9.59a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.83Z',
+      strokeLinejoin: 'round',
+    }),
+  );
+
+/**
+ * 「自动匹配标签」Document Action（仅文章 edit 视图显示）。
+ * 点击 → 确认 → 调 admin 路由 /article-auto-tag/:documentId（走 admin 会话鉴权）→
+ * 成功提示并刷新文档（让 tags 字段显示新挂标签）。作用于「已保存的正文」。
+ */
+const AutoTagAction = ({ model, documentId }: { model?: string; documentId?: string }) => {
+  const { post } = useFetchClient();
+  const { toggleNotification } = useNotification();
+
+  if (model !== ARTICLE_UID || !documentId) return null;
+
+  return {
+    label: '自动匹配标签',
+    icon: React.createElement(TagIcon),
+    position: ['panel'] as const,
+    onClick: async () => {
+      // 确认弹窗里说明一句：作用于已保存的正文。
+      if (
+        !window.confirm(
+          '将扫描【本文已保存的正文】，从标签库匹配出现的标签并挂到文章（只增不覆盖，最多 12 个）。\n请先保存草稿再继续。',
+        )
+      ) {
+        return;
+      }
+      try {
+        const { data } = await post(`/article-auto-tag/${documentId}`);
+        const n = Array.isArray(data?.applied) ? data.applied.length : 0;
+        toggleNotification({
+          type: 'success',
+          message: n > 0 ? `已匹配 ${n} 个新标签，刷新后显示` : '未匹配到新标签',
+        });
+        if (n > 0) window.location.reload();
+      } catch (e) {
+        toggleNotification({ type: 'danger', message: '自动匹配标签失败' });
+      }
+    },
+  };
+};
+
 const zhOverrides: Record<string, string> = {
   // 左侧导航 / 插件名
   'content-manager.plugin.name': '内容管理',
@@ -46,5 +102,11 @@ export default {
       'zh-Hans': zhOverrides,
     },
   },
-  bootstrap() {},
+  bootstrap(app: any) {
+    // 文章编辑页注入「自动匹配标签」按钮（content-manager Document Action）。
+    app.getPlugin('content-manager').apis.addDocumentAction((actions: any[]) => [
+      ...actions,
+      AutoTagAction,
+    ]);
+  },
 };
