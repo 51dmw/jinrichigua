@@ -924,6 +924,20 @@ export default {
   register({ strapi }: { strapi: StrapiApp }) {
     // 发布守卫需在内容操作前注册（§6）
     registerPublishGuard(strapi);
+
+    // 「自动匹配标签」按钮用的 admin 类型路由（走 admin 会话鉴权）。
+    // 注：src/api/*/routes 会被强制为 content-api，admin-JWT 无法调；故在此手动注册 admin 路由。
+    strapi.server.routes({
+      type: 'admin',
+      routes: [
+        {
+          method: 'POST',
+          path: '/article-auto-tag/:documentId',
+          handler: 'api::article.article.autoTag',
+          config: { policies: [] },
+        },
+      ],
+    });
   },
 
   async bootstrap({ strapi }: { strapi: StrapiApp }) {

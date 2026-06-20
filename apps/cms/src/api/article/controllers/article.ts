@@ -58,6 +58,44 @@ export default factories.createCoreController(UID, ({ strapi }) => ({
     ctx.body = { data: doc, message: '已退回' };
   },
 
+  // 自动匹配标签：扫描草稿正文，在标签库里找名字出现在正文中的标签，合并挂到 tags（只增不覆盖，不发布）。
+  // 路由见 routes/workflow.ts；权限通过 RBAC / API Token 控制（非公开写）。
+  async autoTag(ctx) {
+    const documentId = ctx.params.documentId ?? ctx.params.id;
+    if (!documentId) return ctx.badRequest('missing documentId');
+
+    const doc = await strapi.documents(UID).findOne({
+      documentId,
+      status: 'draft',
+      fields: ['content'],
+      populate: { tags: { fields: ['name'] } },
+    } as any);
+    if (!doc) return ctx.notFound();
+
+    const existingTags = ((doc as any).tags ?? []) as Array<{ documentId: string; name?: string }>;
+    const existingTagIds = existingTags.map((t) => t.documentId);
+
+    const { matched, finalTagIds } = await strapi
+      .service(UID)
+      .matchTagsFromContent((doc as any).content ?? '', existingTagIds);
+
+    // 仅当确有新增时才更新（避免无谓写）；只改 draft 的 tags 关系，不触发发布。
+    if (finalTagIds.length !== existingTagIds.length) {
+      await strapi.documents(UID).update({
+        documentId,
+        status: 'draft',
+        data: { tags: finalTagIds } as any,
+      });
+    }
+
+    const appliedNew = matched.filter((m) => !existingTagIds.includes(m.documentId));
+    ctx.body = {
+      matched, // 命中（前10，含 count）
+      applied: appliedNew, // 本次实际新增的
+      tagCount: finalTagIds.length, // 合并后总数
+    };
+  },
+
   // PV 自增（§M6）。直接经 knex 原子自增——同时作用于草稿与已发布两行（D&P 同 documentId），
   // 这样前台/热门/stats 读到的「已发布」viewCount 也即时反映；且绕过 lifecycle，不触发发布联动。
   async view(ctx) {
