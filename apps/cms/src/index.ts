@@ -925,15 +925,24 @@ export default {
     // 发布守卫需在内容操作前注册（§6）
     registerPublishGuard(strapi);
 
-    // 「自动匹配标签」按钮用的 admin 类型路由（走 admin 会话鉴权）。
+    // 后台自定义动作用的 admin 类型路由（走 admin 会话鉴权）。
     // 注：src/api/*/routes 会被强制为 content-api，admin-JWT 无法调；故在此手动注册 admin 路由。
+    // 对应的 content-api 路由（/api/articles/:id/auto-tag、/api/tags/bulk-create）仍保留供 API Token / curl 调用。
     strapi.server.routes({
       type: 'admin',
       routes: [
         {
+          // 文章「自动匹配标签」按钮
           method: 'POST',
           path: '/article-auto-tag/:documentId',
           handler: 'api::article.article.autoTag',
+          config: { policies: [] },
+        },
+        {
+          // 「批量添加标签」后台页面
+          method: 'POST',
+          path: '/tags-bulk-create',
+          handler: 'api::tag.tag.bulkCreate',
           config: { policies: [] },
         },
       ],
