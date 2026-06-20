@@ -32,6 +32,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         {/* 关掉 iOS 把数字/日期自动识别成电话链接（中文正文常见误伤） */}
         <meta name="format-detection" content="telephone=no" />
+        {/* RSS 订阅源自动发现（阅读器/聚合识别）*/}
+        <link rel="alternate" type="application/rss+xml" title={`${siteName} RSS`} href="/rss.xml" />
         {/* 提前与跨域来源建连，加速媒体图片/统计加载（Next 会去重并提升到 <head>）*/}
         <link rel="preconnect" href={STRAPI_API_URL} crossOrigin="" />
         {global?.yandexMetricaId ? (
