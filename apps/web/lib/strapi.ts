@@ -639,6 +639,47 @@ export async function getArticlesForSitemap(
   }
 }
 
+/**
+ * sitemap lastmod 数据源（§4 SEO）：一次按 updatedAt 倒序拉取，首次出现即该实体「最新文章 updatedAt」。
+ * 返回：站点最新（首页/索引用）+ 频道/标签/作者各自的最新更新时间。
+ */
+export async function getSitemapLastmods(): Promise<{
+  site?: string;
+  byChannel: Record<string, string>;
+  byTag: Record<string, string>;
+  byAuthor: Record<string, string>;
+}> {
+  const byChannel: Record<string, string> = {};
+  const byTag: Record<string, string> = {};
+  const byAuthor: Record<string, string> = {};
+  let site: string | undefined;
+  try {
+    const json = await strapiGet<StrapiListResponse<Article>>(
+      `/articles?fields[0]=updatedAt` +
+        `&populate[channel][fields][0]=slug` +
+        `&populate[tags][fields][0]=slug` +
+        `&populate[authorRef][fields][0]=slug` +
+        `&sort[0]=updatedAt:desc&pagination[pageSize]=500`,
+      { tags: [TAGS.articles], revalidate: 300 },
+    );
+    for (const a of json.data ?? []) {
+      const ts = a.updatedAt;
+      if (!ts) continue;
+      if (!site) site = ts; // 已按 updatedAt 倒序，第一条即全站最新
+      const cs = a.channel?.slug;
+      if (cs && !byChannel[cs]) byChannel[cs] = ts;
+      for (const t of a.tags ?? []) {
+        if (t?.slug && !byTag[t.slug]) byTag[t.slug] = ts;
+      }
+      const au = a.authorRef?.slug;
+      if (au && !byAuthor[au]) byAuthor[au] = ts;
+    }
+  } catch {
+    /* 失败则返回空表，sitemap 仍可生成（仅缺 lastmod） */
+  }
+  return { site, byChannel, byTag, byAuthor };
+}
+
 // ─────────────────────────────────────────────────────────────
 // 首页模块编排（§5：区块顺序/variant 由后台数据驱动，前台 MUST NOT 硬编码栏目）
 //
