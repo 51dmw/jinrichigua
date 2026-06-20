@@ -37,7 +37,8 @@ export function buildSiteMetadata(global: GlobalSettings | null): Metadata {
     title: { default: siteName, template },
     description: global?.defaultSeo?.metaDescription ?? undefined,
     applicationName: siteName,
-    robots: robotsFrom(null, global),
+    // 不在根 layout 设全局 robots：默认即 index,follow，无需显式输出；
+    // 各页自行通过 resolveMetadata 设 robots，not-found 页单独设 noindex，避免重复 meta。
     verification,
     openGraph: {
       type: 'website',

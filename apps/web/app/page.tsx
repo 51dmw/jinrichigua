@@ -16,7 +16,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return resolveMetadata({
     seo: global?.defaultSeo,
     global,
-    fallbackTitle: global?.siteName ?? 'News Portal',
+    // 首页 title 含核心关键词（避免过短，§4 SEO）；og:title 由 resolveMetadata 同步。
+    fallbackTitle: '今日吃瓜 - 明星娱乐·网红爆料·社会大瓜实时热搜聚合',
     fallbackDescription: global?.defaultSeo?.metaDescription,
     path: '/',
   });

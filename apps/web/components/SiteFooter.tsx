@@ -102,7 +102,7 @@ export async function SiteFooter({ global }: { global: GlobalSettings | null }) 
               </>
             ) : null}
           </p>
-          <p className="mt-1 text-gray-500">Powered by {siteName} · Next.js + Strapi</p>
+          <p className="mt-1 text-gray-500">© {siteName}</p>
         </div>
       </div>
     </footer>
