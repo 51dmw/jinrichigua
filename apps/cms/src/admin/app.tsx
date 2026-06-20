@@ -9,6 +9,7 @@
  */
 import * as React from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
+import { Button } from '@strapi/design-system';
 
 const ARTICLE_UID = 'api::article.article';
 
@@ -32,42 +33,64 @@ const PlusIcon = () =>
   );
 
 /**
- * 「自动匹配标签」Document Action（仅文章 edit 视图显示）。
+ * 「自动匹配标签」按钮——渲染在编辑页右侧操作面板（发布/保存 那一区）下方的独立面板里。
  * 点击 → 确认 → 调 admin 路由 /article-auto-tag/:documentId（走 admin 会话鉴权）→
  * 成功提示并刷新文档（让 tags 字段显示新挂标签）。作用于「已保存的正文」。
  */
-const AutoTagAction = ({ model, documentId }: { model?: string; documentId?: string }) => {
+const AutoTagButton = ({ documentId }: { documentId: string }) => {
   const { post } = useFetchClient();
   const { toggleNotification } = useNotification();
+  const [loading, setLoading] = React.useState(false);
 
-  if (model !== ARTICLE_UID || !documentId) return null;
+  const onClick = async () => {
+    // 确认弹窗里说明一句：作用于已保存的正文。
+    if (
+      !window.confirm(
+        '将扫描【本文已保存的正文】，从标签库匹配出现的标签并挂到文章（只增不覆盖，最多 12 个）。\n请先保存草稿再继续。',
+      )
+    ) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data } = await post(`/article-auto-tag/${documentId}`);
+      const n = Array.isArray(data?.applied) ? data.applied.length : 0;
+      toggleNotification({
+        type: 'success',
+        message: n > 0 ? `已匹配 ${n} 个新标签，刷新后显示` : '未匹配到新标签',
+      });
+      if (n > 0) window.location.reload();
+    } catch (e) {
+      toggleNotification({ type: 'danger', message: '自动匹配标签失败' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  return {
-    label: '自动匹配标签',
-    icon: React.createElement(TagIcon),
-    // 放编辑页顶部标题栏（与 保存/发布 同区），比 panel 的「⋯ 更多操作」下拉更显眼。
-    position: ['header'] as const,
-    onClick: async () => {
-      // 确认弹窗里说明一句：作用于已保存的正文。
-      if (
-        !window.confirm(
-          '将扫描【本文已保存的正文】，从标签库匹配出现的标签并挂到文章（只增不覆盖，最多 12 个）。\n请先保存草稿再继续。',
-        )
-      ) {
-        return;
-      }
-      try {
-        const { data } = await post(`/article-auto-tag/${documentId}`);
-        const n = Array.isArray(data?.applied) ? data.applied.length : 0;
-        toggleNotification({
-          type: 'success',
-          message: n > 0 ? `已匹配 ${n} 个新标签，刷新后显示` : '未匹配到新标签',
-        });
-        if (n > 0) window.location.reload();
-      } catch (e) {
-        toggleNotification({ type: 'danger', message: '自动匹配标签失败' });
-      }
+  return React.createElement(
+    Button,
+    {
+      onClick,
+      loading,
+      disabled: loading,
+      variant: 'secondary',
+      fullWidth: true,
+      startIcon: React.createElement(TagIcon),
     },
+    '自动匹配标签',
+  );
+};
+
+/**
+ * 注册为编辑视图右侧自定义面板（addEditViewSidePanel）。
+ * 仅在文章（api::article.article）且文档已保存（有 documentId）时显示。
+ * 返回 { title, content }；返回 null 则该面板不渲染。
+ */
+const AutoTagPanel = ({ model, documentId }: { model?: string; documentId?: string }) => {
+  if (model !== ARTICLE_UID || !documentId) return null;
+  return {
+    title: '标签',
+    content: React.createElement(AutoTagButton, { documentId }),
   };
 };
 
@@ -138,10 +161,12 @@ export default {
     });
   },
   bootstrap(app: any) {
-    // 文章编辑页注入「自动匹配标签」按钮（content-manager Document Action）。
-    app.getPlugin('content-manager').apis.addDocumentAction((actions: any[]) => [
-      ...actions,
-      AutoTagAction,
+    // 文章编辑页右侧加「自动匹配标签」面板按钮（content-manager 编辑视图侧栏面板）。
+    // 用 side panel 而非 document action：后者在面板区只有「主/次」两个可见位（被 发布/保存 占），
+    // 多出来的会被收进「⋯ 更多操作」；side panel 则是独立可见按钮，不挤占发布/保存。
+    app.getPlugin('content-manager').apis.addEditViewSidePanel((panels: any[]) => [
+      ...panels,
+      AutoTagPanel,
     ]);
   },
 };
