@@ -13,7 +13,7 @@ export function HomeBlockSection({ block, first }: { block: HomeBlock; first?: b
           {block.title}
         </h2>
         {block.channelSlug ? (
-          <Link href={`/${block.channelSlug}`} className="text-xs text-gray-400">
+          <Link href={`/${block.channelSlug}`} className="text-xs text-gray-500">
             更多 ›
           </Link>
         ) : null}

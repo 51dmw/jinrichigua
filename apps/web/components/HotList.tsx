@@ -20,7 +20,7 @@ export async function HotList({
     <section className="mb-6 rounded-lg bg-white p-3">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="border-l-4 border-brand pl-2 text-base font-bold text-gray-900">{title}</h2>
-        <Link href="/hot" className="text-xs text-gray-400 hover:text-brand">
+        <Link href="/hot" className="text-xs text-gray-500 hover:text-brand">
           更多 ›
         </Link>
       </div>
@@ -33,14 +33,14 @@ export async function HotList({
             >
               <span
                 className={`w-5 shrink-0 text-center text-sm font-bold ${
-                  i < 3 ? 'text-brand' : 'text-gray-300'
+                  i < 3 ? 'text-brand' : 'text-gray-500'
                 }`}
               >
                 {i + 1}
               </span>
               <span className="line-clamp-1 flex-1 text-[15px] text-gray-900">{a.title}</span>
               {typeof a.viewCount === 'number' ? (
-                <span className="shrink-0 text-xs text-gray-400">{a.viewCount}</span>
+                <span className="shrink-0 text-xs text-gray-500">{a.viewCount}</span>
               ) : null}
             </Link>
           </li>

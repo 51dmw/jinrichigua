@@ -111,7 +111,7 @@ export default async function ArticlePage({ params }: { params: Params }) {
 
       <h1 className="text-xl font-bold leading-snug text-gray-900">{article.title}</h1>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 text-xs text-gray-400">
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 text-xs text-gray-500">
         {published ? <time dateTime={published}>{formatDate(published)}</time> : null}
         {article.source ? <span>来源：{article.source}</span> : null}
         {article.authorRef ? (
@@ -171,7 +171,7 @@ export default async function ArticlePage({ params }: { params: Params }) {
       <ShareButtons url={`${SITE_URL}${path}`} title={article.title} />
 
       {/* 免责声明（后台 Global.disclaimer 可编辑） */}
-      <p className="mt-4 rounded bg-gray-50 p-3 text-xs leading-5 text-gray-400">
+      <p className="mt-4 rounded bg-gray-50 p-3 text-xs leading-5 text-gray-500">
         {global?.disclaimer ??
           '免责声明：本站内容多来源于网络公开渠道及用户投稿，仅代表作者个人观点，不代表本站立场；相关信息仅供娱乐与参考，不构成任何投资、决策或法律建议。如涉及侵权、不实或个人隐私，请通过「联络我们」与我们联系处理。'}
       </p>

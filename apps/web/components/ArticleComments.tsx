@@ -183,7 +183,7 @@ export function ArticleComments({
     <section className="mt-4 rounded-lg bg-white p-4" aria-label="评论区">
       <div className="mb-3 flex items-baseline gap-2 border-b border-gray-100 pb-2">
         <h2 className="border-l-4 border-brand pl-2 text-base font-bold text-gray-900">评论</h2>
-        <span className="text-sm text-gray-400">{approvedCount}</span>
+        <span className="text-sm text-gray-500">{approvedCount}</span>
       </div>
 
       {/* 发表评论 */}
@@ -217,7 +217,7 @@ export function ArticleComments({
               maxLength={50}
               className="h-8 w-36 rounded border border-gray-200 px-2 text-sm outline-none focus:border-brand"
             />
-            <span className="text-xs text-gray-300">{content.length}/1000</span>
+            <span className="text-xs text-gray-500">{content.length}/1000</span>
             <button
               type="submit"
               disabled={submitting || !content.trim() || (!!turnstileSiteKey && !token)}
@@ -228,7 +228,7 @@ export function ArticleComments({
           </div>
           {/* Turnstile 无感人机验证（invisible，不渲染可见组件）*/}
           {turnstileSiteKey ? <div ref={tsRef} /> : null}
-          <p className="mt-1.5 text-xs text-gray-400">
+          <p className="mt-1.5 text-xs text-gray-500">
             {error ? <span className="text-brand">{error}</span> : '评论将在审核通过后公开展示。'}
           </p>
         </div>
@@ -248,7 +248,7 @@ export function ArticleComments({
           ))}
         </div>
       ) : list.length === 0 ? (
-        <p className="py-6 text-center text-sm text-gray-400">还没有评论，来抢沙发吧～</p>
+        <p className="py-6 text-center text-sm text-gray-500">还没有评论，来抢沙发吧～</p>
       ) : (
         <ul className="space-y-4">
           {list.map((c) => (
@@ -262,11 +262,11 @@ export function ArticleComments({
                       审核中
                     </span>
                   ) : null}
-                  <time className="text-xs text-gray-300" dateTime={c.createdAt}>
+                  <time className="text-xs text-gray-500" dateTime={c.createdAt}>
                     {fmt(c.createdAt)}
                   </time>
                 </div>
-                <p className={`text-sm leading-6 ${c.pending ? 'text-gray-400' : 'text-gray-800'}`}>
+                <p className={`text-sm leading-6 ${c.pending ? 'text-gray-500' : 'text-gray-800'}`}>
                   {c.content}
                 </p>
               </div>

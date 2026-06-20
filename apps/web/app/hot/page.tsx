@@ -39,11 +39,11 @@ function HotRow({ a, rank }: { a: ArticleListItem; rank: number }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span
-              className={`text-sm font-extrabold italic ${top ? 'text-brand' : 'text-gray-400'}`}
+              className={`text-sm font-extrabold italic ${top ? 'text-brand' : 'text-gray-500'}`}
             >
               NO.{rank}
             </span>
-            <span className="text-xs text-gray-400">{formatHeat(a.viewCount)}热度</span>
+            <span className="text-xs text-gray-500">{formatHeat(a.viewCount)}热度</span>
           </div>
           <h2 className="mt-1 line-clamp-1 font-bold text-gray-900">
             <span className="text-brand">#</span>
@@ -52,7 +52,7 @@ function HotRow({ a, rank }: { a: ArticleListItem; rank: number }) {
           {a.summary ? (
             <p className="mt-1 line-clamp-2 text-sm text-gray-500">{a.summary}</p>
           ) : null}
-          <div className="mt-1 text-xs text-gray-400">
+          <div className="mt-1 text-xs text-gray-500">
             {a.channel?.name ?? ''} {a.source ? `· ${a.source}` : ''}
           </div>
         </div>

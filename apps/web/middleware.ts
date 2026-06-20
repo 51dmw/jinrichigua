@@ -12,6 +12,18 @@ import { NextResponse, type NextRequest } from 'next/server';
 export function middleware(req: NextRequest) {
   // 用原生 URL（而非 req.nextUrl.clone()）：后者会携带尾斜杠语义、序列化时再补回斜杠。
   const url = new URL(req.url);
+  // 反代后 req.url 的 host 是内部地址（如 127.0.0.1:3100），直接 redirect 会把
+  // 用户/爬虫导向不可达的内部 host。用反代透传的 Host / X-Forwarded-Proto 纠正，
+  // 使 308 的 Location 指向真实站点地址。
+  const fwdHost = req.headers.get('host');
+  if (fwdHost) {
+    url.host = fwdHost;
+    // URL host setter 不会清除原有端口（如内部 3100）；外部 Host 不含端口时显式清掉，
+    // 否则 Location 会变成 sibian.xyz:3100。
+    if (!fwdHost.includes(':')) url.port = '';
+  }
+  const fwdProto = req.headers.get('x-forwarded-proto');
+  if (fwdProto) url.protocol = fwdProto;
   const original = url.pathname;
 
   let normalized = original.replace(/\/{2,}/g, '/');

@@ -17,12 +17,16 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/web/package.json ./apps/web/
 COPY apps/cms/package.json ./apps/cms/
-RUN pnpm install --frozen-lockfile --filter cms
+# NODE_ENV=production 会让 pnpm 跳过 devDependencies，但构建需要
+# @strapi/typescript-utils + typescript（devDeps），故 --prod=false 强制装上。
+RUN pnpm install --frozen-lockfile --filter cms --prod=false
 
 # 拷贝源码并构建 admin
 COPY apps/cms ./apps/cms
 WORKDIR /app/apps/cms
-RUN pnpm build
+# 先生成 content-type 类型（types/generated/），否则 strapi build 的 tsc 编译
+# 不认识 reviewState/word 等自定义字段而报错。该步骤不连 DB、不需密钥。
+RUN pnpm exec strapi ts:generate-types && pnpm build
 
 # ───────── 运行阶段 ─────────
 FROM node:20-bookworm-slim AS runner

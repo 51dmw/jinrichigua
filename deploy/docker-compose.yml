@@ -37,6 +37,8 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 1337
+      # 公开 URL（反代 + Cloudflare TLS）。配合 server.ts 的 url/proxy。
+      URL: ${URL:-https://cms.sibian.xyz}
       DATABASE_CLIENT: postgres
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432

@@ -173,6 +173,26 @@ const REBRAND_CHANNELS = [
   { name: '历史旧瓜', slug: 'history' },
 ];
 
+// 频道 SEO 描述（slug → description）：写入 channel.description，
+// 既是频道页 meta description（§4 TDK），也作为频道页可见简介。仅填空缺、不覆盖后台手改。
+const CHANNEL_DESCRIPTIONS: Record<string, string> = {
+  star: '明星娱乐第一线：实时追踪明星绯闻、恋情、塌房、综艺与红毯八卦，带你吃透娱乐圈每日热搜。',
+  influencer: '网红达人动态全收录：主播、博主、带货红人的翻车、撕番、爆料与涨粉内幕，一站吃瓜。',
+  video: '热点吃瓜视频聚合：现场实拍、监控曝光、采访片段与名场面回放，边看边吃瓜。',
+  society: '社会大瓜聚焦：民生事件、维权现场、奇葩新闻与全网热议话题的深度梳理与持续跟进。',
+  inside: '独家爆料与内幕揭秘：行业黑幕、隐秘交易、知情人爆料，带你看清事件来龙去脉。',
+  dirt: '黑料档案馆：人物黑历史、争议事件与实锤证据的系统归档，持续更新不漏一条。',
+  love: '情感婚恋八卦：明星恋情、离婚出轨、豪门恩怨与网友情感大瓜，全程围观不掉队。',
+  sports: '体育圈吃瓜：球星场内外动态、转会绯闻、更衣室风波与赛场争议热点速递。',
+  campus: '校园热议话题：高校趣闻、师生热点、考试升学与年轻人热搜的第一现场。',
+  oversea: '海外吃瓜前线：欧美日韩明星动态、国际名人八卦与全球热点事件实时跟进。',
+  history: '历史旧瓜重温：经典事件回顾、名人往事扒皮与那些年的热搜旧闻深度盘点。',
+};
+
+// 全站默认 SEO 描述：首页 / 搜索等无专属描述的页面的兜底 meta description（§4 TDK）。
+const DEFAULT_SEO_DESCRIPTION =
+  '今日吃瓜——全网热点吃瓜第一站，实时聚合明星娱乐、网红达人、社会大瓜、爆料内幕等多频道热搜，带你第一时间吃瓜、看清事件来龙去脉。';
+
 // 演示用吃瓜标签：每篇文章挂 3 个，让全新部署的「热门标签」开箱即有内容（避免空标签云）。
 const REBRAND_TAGS = [
   { name: '热搜', slug: 'resou' },
@@ -851,6 +871,55 @@ async function ensureCandidateTags(strapi: StrapiApp) {
   strapi.log.info(`[bootstrap] 候选标签词库已就绪（新建 ${created} 个）`);
 }
 
+// ── 频道 description（§4 TDK）：补全缺失的频道 meta description ──
+// 幂等：仅当 description 为空时填入（不覆盖后台手改）；channel 为 draft&publish，填后发布。
+async function ensureChannelDescriptions(strapi: StrapiApp) {
+  try {
+    const channels = await strapi
+      .documents('api::channel.channel')
+      .findMany({ fields: ['documentId', 'slug', 'description'], pagination: { pageSize: 100 } });
+    let n = 0;
+    for (const ch of channels ?? []) {
+      const desc = CHANNEL_DESCRIPTIONS[ch.slug as keyof typeof CHANNEL_DESCRIPTIONS];
+      if (desc && !(ch.description && String(ch.description).trim())) {
+        await strapi
+          .documents('api::channel.channel')
+          .update({ documentId: ch.documentId, data: { description: desc } });
+        await strapi
+          .documents('api::channel.channel')
+          .publish({ documentId: ch.documentId })
+          .catch(() => null);
+        n += 1;
+      }
+    }
+    if (n > 0) strapi.log.info(`[bootstrap] channel descriptions filled (${n})`);
+  } catch (e) {
+    strapi.log.warn(`[bootstrap] channel descriptions skipped: ${(e as Error).message}`);
+  }
+}
+
+// ── 全局 defaultSeo.metaDescription（§4 TDK）：首页/搜索等的兜底描述 ──
+// 幂等：仅当为空时填入（global 非 draft&publish，update 即生效）。
+async function ensureGlobalDefaultSeo(strapi: StrapiApp) {
+  try {
+    const g = await strapi
+      .documents('api::global.global')
+      .findFirst({ populate: { defaultSeo: true } });
+    if (!g?.documentId) return;
+    const cur = (g as any).defaultSeo?.metaDescription;
+    if (cur && String(cur).trim()) return; // 已有则不覆盖
+    await strapi.documents('api::global.global').update({
+      documentId: g.documentId,
+      data: {
+        defaultSeo: { ...((g as any).defaultSeo ?? {}), metaDescription: DEFAULT_SEO_DESCRIPTION },
+      },
+    });
+    strapi.log.info('[bootstrap] global defaultSeo.metaDescription filled');
+  } catch (e) {
+    strapi.log.warn(`[bootstrap] global defaultSeo skipped: ${(e as Error).message}`);
+  }
+}
+
 export default {
   register({ strapi }: { strapi: StrapiApp }) {
     // 发布守卫需在内容操作前注册（§6）
@@ -867,6 +936,8 @@ export default {
       await grantPublicReadPermissions(strapi);
       await ensureAdminRoles(strapi); // RBAC 三角色（§6）
       await ensureHomeLayout(strapi); // 首页编排（§5）
+      await ensureChannelDescriptions(strapi); // 频道 description（§4 TDK，须在频道已建之后）
+      await ensureGlobalDefaultSeo(strapi); // 全局兜底 SEO 描述（§4 TDK）
       await ensureAdSlots(strapi); // 广告位（§M6）
       await ensurePages(strapi); // 信息/法律页（§8）
       await ensureAuthors(strapi); // 作者实体（E-E-A-T）

@@ -56,7 +56,7 @@ export function ShareButtons({ url, title }: { url: string; title: string }) {
 
   return (
     <div className="relative mt-5 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4">
-      <span className="text-xs text-gray-400">分享到：</span>
+      <span className="text-xs text-gray-500">分享到：</span>
       <a href={weibo} target="_blank" rel="noopener noreferrer" className={btn}>
         微博
       </a>

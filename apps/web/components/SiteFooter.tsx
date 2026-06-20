@@ -50,10 +50,14 @@ export async function SiteFooter({ global }: { global: GlobalSettings | null }) 
       <div className="mx-auto max-w-screen px-4 py-6 lg:max-w-5xl">
         {/* 精选标签（按标签最热文章点击数排序，SEO 站内内链，每页可见） */}
         {tags.length > 0 ? (
-          <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            <span className="text-gray-400">精选标签：</span>
+          <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+            <span className="text-gray-500">精选标签：</span>
             {tags.map((t) => (
-              <Link key={t.slug} href={`/tag/${t.slug}`} className="hover:text-brand">
+              <Link
+                key={t.slug}
+                href={`/tag/${t.slug}`}
+                className="inline-flex min-h-[24px] items-center px-1 py-1 hover:text-brand"
+              >
                 {t.name}
               </Link>
             ))}
@@ -80,7 +84,7 @@ export async function SiteFooter({ global }: { global: GlobalSettings | null }) 
       </div>
 
       {/* 底栏：版权 + ICP + 版本归属 */}
-      <div className="border-t border-gray-200 py-4 text-center text-xs text-gray-400">
+      <div className="border-t border-gray-200 py-4 text-center text-xs text-gray-500">
         <div className="mx-auto max-w-screen px-4 lg:max-w-5xl">
           <p>
             © {year} {siteName}. 版权所有
@@ -98,7 +102,7 @@ export async function SiteFooter({ global }: { global: GlobalSettings | null }) 
               </>
             ) : null}
           </p>
-          <p className="mt-1 text-gray-300">Powered by {siteName} · Next.js + Strapi</p>
+          <p className="mt-1 text-gray-500">Powered by {siteName} · Next.js + Strapi</p>
         </div>
       </div>
     </footer>

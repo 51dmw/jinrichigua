@@ -28,7 +28,13 @@ const INDEXES = [
 module.exports = {
   async up(knex) {
     // 项目仅用 PostgreSQL（禁用 SQLite）；CREATE INDEX IF NOT EXISTS 为 PG 语法。
+    // 注意：全新空库首次启动时 Strapi 先执行迁移、后由 schema sync 建表，
+    // 此刻 articles/comments 可能尚不存在。用 to_regclass 判断表是否存在，
+    // 不存在则跳过该索引（避免首启 relation does not exist 崩溃）。
     for (const { sql } of INDEXES) {
+      const table = sql.match(/\sON\s+(\w+)\s/i)[1];
+      const { rows } = await knex.raw('SELECT to_regclass(?) AS reg', [table]);
+      if (!rows[0] || !rows[0].reg) continue;
       await knex.raw(sql);
     }
   },

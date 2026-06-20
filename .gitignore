@@ -33,6 +33,9 @@ apps/cms/public/uploads/*
 !apps/cms/public/uploads/.gitkeep
 apps/cms/types/generated/
 
+# db backups（运维产物，勿入库）
+data/backups/
+
 # misc
 .DS_Store
 *.log
