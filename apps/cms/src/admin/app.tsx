@@ -439,6 +439,8 @@ const zhOverrides: Record<string, string> = {
   'content-manager.components.LeftMenu.Search.label': '搜索内容类型',
   // 左侧菜单「Content-Type Builder」插件名（content-type-builder 插件，key 带该插件前缀）。
   'content-type-builder.plugin.name': '内容类型构建器',
+  // 可重复组件「Add an entry」添加按钮(首页编排的首页区块等),en 字典有该 key 但官方 zh 漏译。
+  'content-manager.containers.EditView.add.new-entry': '添加条目',
 };
 
 export default {
