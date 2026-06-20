@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "description": "Next.js 15 前台 — SEO 友好（Google + Yandex），部署到 Cloudflare Workers (OpenNext)。",
+  "browserslist": [
+    "chrome >= 93",
+    "edge >= 93",
+    "firefox >= 92",
+    "safari >= 15.4",
+    "ios_saf >= 15.4"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
