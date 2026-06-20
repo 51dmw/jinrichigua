@@ -441,6 +441,12 @@ const zhOverrides: Record<string, string> = {
   'content-type-builder.plugin.name': '内容类型构建器',
   // 可重复组件「Add an entry」添加按钮(首页编排的首页区块等),en 字典有该 key 但官方 zh 漏译。
   'content-manager.containers.EditView.add.new-entry': '添加条目',
+
+  // ── 第二轮浏览器扫描补漏:设置-用户「Active」状态 + 列表加载 aria 通知 ──
+  'Settings.permissions.users.active': '已激活',
+  'app.containers.Users.EditPage.form.active.label': '已激活',
+  'Auth.form.active.label': '已激活',
+  'content-manager.App.schemas.data-loaded': '内容类型已加载完成',
 };
 
 export default {
