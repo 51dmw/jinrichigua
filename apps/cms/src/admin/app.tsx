@@ -430,6 +430,15 @@ const zhOverrides: Record<string, string> = {
   'components.Blocks.dnd.instruction':
     '要重新排序块，请按 Command 或 Control 加 Shift 以及上/下方向键',
   'components.Blocks.dnd.reorder': '{item} 已移动。在编辑器中的新位置：{position}。',
+
+  // ── 浏览器实测补漏：代码实际用的 id 与 en 字典 key 不一致 / 走 defaultMessage，字典 diff 抓不到 ──
+  // 列表 STATUS 列头：渲染代码用 .status（en 字典里只有 .publishedAt，故 defaultMessage="Status"）。
+  'content-manager.containers.list.table-headers.status': '状态',
+  // 左侧「内容类型」搜索框：代码用 form.Input.search（不是 LeftMenu.Search.label）。两个都补。
+  'content-manager.form.Input.search': '搜索内容类型',
+  'content-manager.components.LeftMenu.Search.label': '搜索内容类型',
+  // 左侧菜单「Content-Type Builder」插件名（content-type-builder 插件，key 带该插件前缀）。
+  'content-type-builder.plugin.name': '内容类型构建器',
 };
 
 export default {
