@@ -8,8 +8,8 @@
  * 4) 左侧菜单加「批量添加标签」自定义页面。
  */
 import * as React from 'react';
-import { useFetchClient, useNotification } from '@strapi/strapi/admin';
-import { Button } from '@strapi/design-system';
+import { useFetchClient, useNotification, useField } from '@strapi/strapi/admin';
+import { Button, Field, SingleSelect, SingleSelectOption } from '@strapi/design-system';
 
 const ARTICLE_UID = 'api::article.article';
 
@@ -94,6 +94,55 @@ const AutoTagPanel = ({ model, documentId }: { model?: string; documentId?: stri
   };
 };
 
+// 文章「审核状态」枚举值 → 中文显示 label。底层 value 仍是英文（draft/pending/approved/rejected），
+// 发布守卫、RBAC、lifecycle 都依赖这些英文值，绝不改动。
+const REVIEW_LABELS: Record<string, string> = {
+  draft: '草稿',
+  pending: '待审核',
+  approved: '已通过',
+  rejected: '已驳回',
+};
+
+/**
+ * 自定义 enumeration 输入控件，按 type 注册（app.addFields）。
+ * Strapi 5.7 的自定义 input 只能按字段 type 注册、没有按字段名的入口，所以这里会接管后台
+ * 所有 enum 字段：
+ *   - 文章 reviewState：把英文值显示成中文 label；onChange 写回 / 回显的仍是英文 value。
+ *   - 其它 enum（如 ad-slot.format）：label = value，保持英文，行为与内置一致。
+ * 复刻内置 EnumerationInput 的结构（useField + Field.Root + SingleSelect），避免破坏表单。
+ */
+const EnumerationInput = React.forwardRef<HTMLButtonElement, any>((props, ref) => {
+  const { name, attribute, required, label, hint, labelAction, disabled } = props;
+  const field = useField(name);
+  const values: string[] = Array.isArray(attribute?.enum) ? attribute.enum : [];
+  const toLabel = (v: string) => (name === 'reviewState' ? REVIEW_LABELS[v] ?? v : v);
+
+  return React.createElement(
+    Field.Root,
+    { error: field.error, name, hint, required },
+    React.createElement(Field.Label, { action: labelAction }, label),
+    React.createElement(
+      SingleSelect,
+      {
+        ref,
+        onChange: (value: string) => field.onChange(name, value),
+        value: field.value ?? '',
+        disabled,
+      },
+      // 非必填时保留一个空占位项（必填则隐藏），与内置行为一致。
+      React.createElement(
+        SingleSelectOption,
+        { key: '__empty', value: '', disabled: required, hidden: required },
+        '请选择',
+      ),
+      ...values.map((v) => React.createElement(SingleSelectOption, { key: v, value: v }, toLabel(v))),
+    ),
+    React.createElement(Field.Hint),
+    React.createElement(Field.Error),
+  );
+});
+EnumerationInput.displayName = 'EnumerationInput';
+
 const zhOverrides: Record<string, string> = {
   // 左侧导航 / 插件名
   'content-manager.plugin.name': '内容管理',
@@ -150,6 +199,10 @@ export default {
         document.head.appendChild(meta);
       }
     }
+
+    // 注册自定义 enumeration 输入控件：文章「审核状态」下拉显示中文，存储值仍为英文枚举。
+    // 注意：addFields 按 type 注册，会接管后台所有 enum 字段（详见 EnumerationInput 注释）。
+    app.addFields({ type: 'enumeration', Component: EnumerationInput });
 
     // 左侧菜单加「批量添加标签」入口 → 自定义页面（调 admin 路由 /tags-bulk-create）。
     app.addMenuLink({
