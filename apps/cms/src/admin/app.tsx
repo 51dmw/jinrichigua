@@ -207,6 +207,12 @@ const zhOverrides: Record<string, string> = {
   'content-manager.form.Input.hint.text':
     '{min, select, undefined {} other {最小 {min}}}{divider}{max, select, undefined {} other {最多 {max}}}{unit}{br}{description}',
   'content-manager.form.Input.hint.character.unit': '{maxValue, plural, one { 字符} other { 字符}}',
+
+  // 发布状态：列表 STATUS 列头（基于 publishedAt 字段）+ 状态徽章（DocumentStatus，列表与编辑页共用）。
+  'content-manager.containers.list.table-headers.publishedAt': '状态',
+  'content-manager.containers.List.published': '已发布',
+  'content-manager.containers.List.draft': '草稿',
+  'content-manager.containers.List.modified': '已修改',
 };
 
 export default {
