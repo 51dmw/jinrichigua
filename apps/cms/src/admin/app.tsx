@@ -207,6 +207,240 @@ const zhOverrides: Record<string, string> = {
   'content-manager.form.Input.hint.text':
     '{min, select, undefined {} other {最小 {min}}}{divider}{max, select, undefined {} other {最多 {max}}}{unit}{br}{description}',
   'content-manager.form.Input.hint.character.unit': '{maxValue, plural, one { 字符} other { 字符}}',
+
+  // 发布状态：列表 STATUS 列头（基于 publishedAt 字段）+ 状态徽章（DocumentStatus，列表与编辑页共用）。
+  'content-manager.containers.list.table-headers.publishedAt': '状态',
+  'content-manager.containers.List.published': '已发布',
+  'content-manager.containers.List.draft': '草稿',
+  'content-manager.containers.List.modified': '已修改',
+
+  // ── 系统排查补漏：content-manager 官方简体包未翻译、但会出现在后台界面的词条 ──
+  // 操作 / 对话框
+  'content-manager.actions.clone.error': '复制文档时出错。',
+  'content-manager.actions.delete.dialog.body': '确定要删除此文档吗？此操作不可撤销。',
+  'content-manager.actions.delete.error': '删除文档时出错。',
+  'content-manager.actions.discard.label': '放弃修改',
+  'content-manager.actions.discard.dialog.body': '确定要放弃这些修改吗？此操作不可撤销。',
+  'content-manager.actions.edit.error': '编辑文档时出错。',
+  'content-manager.actions.unpublish.error': '取消发布文档时出错。',
+  'content-manager.actions.unpublish.dialog.body': '确定要取消发布吗？',
+  'content-manager.actions.unpublish.dialog.option.keep-draft': '取消发布并保留最新草稿',
+  'content-manager.actions.unpublish.dialog.option.replace-draft': '取消发布并替换最新草稿',
+  // 列表 / 关系
+  'content-manager.ListViewTable.relation-loaded': '关联数据已加载',
+  'content-manager.ListViewTable.relation-loading': '关联数据加载中',
+  'content-manager.ListViewTable.relation-more': '此关联包含的条目多于所显示的数量',
+  'content-manager.components.ListViewTable.row-line': '第 {number} 行',
+  'content-manager.components.Filters.usersSelect.label': '搜索并选择用于筛选的用户',
+  'content-manager.containers.list.table.row-actions': '行操作',
+  'content-manager.popover.display-relations.label': '显示关联',
+  'content-manager.relation.error-adding-relation': '添加关联时出错。',
+  'content-manager.components.DynamicZone.extra-components':
+    '存在 {number, plural, =0 {# 个多余组件} one {# 个多余组件} other {# 个多余组件}}',
+  // 信息面板时间值（{time} … by {author}）
+  'content-manager.containers.edit.information.last-published.value':
+    '{time}{isAnonymous, select, true {} other { 由 {author}}}',
+  'content-manager.containers.edit.information.last-draft.value':
+    '{time}{isAnonymous, select, true {} other { 由 {author}}}',
+  'content-manager.containers.edit.information.document.value':
+    '{time}{isAnonymous, select, true {} other { 由 {author}}}',
+  // 批量发布状态
+  'content-manager.bulk-publish.already-published': '已发布',
+  'content-manager.bulk-unpublish.already-unpublished': '已取消发布',
+  'content-manager.bulk-publish.modified': '有改动待发布',
+  'content-manager.bulk-publish.edit': '编辑',
+  'content-manager.containers.list.selectedEntriesModal.title': '发布条目',
+  'content-manager.containers.list.selectedEntriesModal.selectedCount.publish':
+    '<b>{publishedCount}</b> {publishedCount, plural, other {个条目}}已发布。<b>{draftCount}</b> {draftCount, plural, other {个条目}}可发布。<b>{withErrorsCount}</b> {withErrorsCount, plural, other {个条目}}待处理。',
+  'content-manager.containers.list.selectedEntriesModal.selectedCount.unpublish':
+    '<b>{draftCount}</b> {draftCount, plural, other {个条目}}已取消发布。<b>{publishedCount}</b> {publishedCount, plural, other {个条目}}可取消发布。',
+  // 复制（autoClone）弹窗
+  'content-manager.containers.list.autoCloneModal.header': '复制',
+  'content-manager.containers.list.autoCloneModal.title': '此条目无法直接复制。',
+  'content-manager.containers.list.autoCloneModal.description':
+    '将创建一个内容相同的新条目，但你需要修改以下字段才能保存。',
+  'content-manager.containers.list.autoCloneModal.create': '创建',
+  'content-manager.containers.list.autoCloneModal.error.unique': '唯一字段中不允许出现相同的值。',
+  'content-manager.containers.list.autoCloneModal.error.relation': '复制该关联可能会将其从原条目中移除。',
+  // 视图配置（Configure the view）弹窗
+  'content-manager.containers.list-settings.modal-form.label': '编辑 {fieldName}',
+  'content-manager.containers.list-settings.modal-form.error': '打开表单时出错。',
+  'content-manager.containers.edit-settings.modal-form.error': '打开表单时出错。',
+  'content-manager.containers.edit-settings.modal-form.label': '标签',
+  'content-manager.containers.edit-settings.modal-form.description': '描述',
+  'content-manager.containers.edit-settings.modal-form.placeholder': '占位提示',
+  'content-manager.containers.edit-settings.modal-form.mainField': '条目标题',
+  'content-manager.containers.edit-settings.modal-form.mainField.hint': '设置在编辑页与列表页显示的字段',
+  'content-manager.containers.edit-settings.modal-form.editable': '可编辑字段',
+  'content-manager.containers.edit-settings.modal-form.size': '尺寸',
+  // 草稿关联告警
+  'content-manager.error.records.fetch-draft-relatons': '获取该文档的草稿关联时出错。',
+  'content-manager.popUpWarning.warning.has-draft-relations.message':
+    '此条目关联了 {count, plural, one {# 个草稿条目} other {# 个草稿条目}}。发布它可能会在你的应用中留下失效链接。',
+  'content-manager.popUpwarning.warning.bulk-has-draft-relations.message':
+    '<b>{entities} 个条目中有 {count, plural, one {# 个关联} other {# 个关联}}</b>尚未发布，可能导致非预期行为。',
+  // 预览
+  'content-manager.preview.panel.title': '预览',
+  'content-manager.preview.panel.button': '打开预览',
+  'content-manager.preview.panel.button-disabled-tooltip': '请先保存再打开预览',
+  'content-manager.preview.page-title': '{contentType} 预览',
+  'content-manager.preview.header.close': '关闭预览',
+  'content-manager.preview.copy.label': '复制预览链接',
+  'content-manager.preview.copy.success': '已复制预览链接',
+  'content-manager.preview.tabs.label': '预览状态',
+  // 操作成功提示
+  'content-manager.success.record.clone': '已复制文档',
+  'content-manager.success.record.discard': '已放弃修改',
+  'content-manager.success.record.publishing': '发布中……',
+  'content-manager.success.records.delete': '删除成功。',
+  'content-manager.success.records.unpublish': '取消发布成功。',
+  'content-manager.success.records.publish': '发布成功。',
+  'content-manager.validation.error': '文档中存在校验错误，请先修正再保存。',
+  // 内容历史（Content History）
+  'content-manager.history.document-action': '内容历史',
+  'content-manager.history.page-title': '{contentType} 历史',
+  'content-manager.history.sidebar.title': '版本',
+  'content-manager.history.sidebar.version-card.aria-label': '版本卡片',
+  'content-manager.history.sidebar.versionDescription':
+    '{distanceToNow}{isAnonymous, select, true {} other { 由 {author}}}{isCurrent, select, true { <b>(当前)</b>} other {}}',
+  'content-manager.history.sidebar.show-newer': '显示更新的版本',
+  'content-manager.history.sidebar.show-older': '显示更早的版本',
+  'content-manager.history.version.subtitle':
+    '{hasLocale, select, true {{subtitle}，语言 {locale}} other {{subtitle}}}',
+  'content-manager.history.content.new-field.title': '新字段',
+  'content-manager.history.content.new-field.message':
+    '保存此版本时该字段尚不存在。如果还原此版本，它将为空。',
+  'content-manager.history.content.unknown-fields.title': '未知字段',
+  'content-manager.history.content.unknown-fields.message':
+    '这些字段已在内容类型构建器中被删除或重命名。<b>这些字段不会被还原。</b>',
+  'content-manager.history.content.missing-assets.title':
+    '{number, plural, =1 {缺失的素材} other {# 个缺失的素材}}',
+  'content-manager.history.content.missing-assets.message':
+    '{number, plural, =1 {它} other {它们}}已在媒体库中被删除，无法还原。',
+  'content-manager.history.content.missing-relations.title':
+    '{number, plural, =1 {缺失的关联} other {# 个缺失的关联}}',
+  'content-manager.history.content.missing-relations.message':
+    '{number, plural, =1 {它} other {它们}}已被删除，无法还原。',
+  'content-manager.history.content.no-relations': '无关联。',
+  'content-manager.history.content.localized':
+    '此值为该语言特有。如果还原此版本，其它语言的内容不会被替换。',
+  'content-manager.history.content.not-localized':
+    '此值为所有语言共用。如果还原此版本，所有语言的内容都会被替换。',
+  'content-manager.history.restore.confirm.button': '还原',
+  'content-manager.history.restore.confirm.title': '确定要还原此版本吗？',
+  'content-manager.history.restore.confirm.message':
+    '{isDraft, select, true {还原的内容将覆盖你的草稿。} other {还原的内容不会被发布，它会覆盖草稿并保存为待发布修改，你可以随时发布这些修改。}}',
+  'content-manager.history.restore.success.title': '版本已还原。',
+  'content-manager.history.restore.success.message': '已还原内容的历史版本。',
+  'content-manager.history.restore.error.message': '无法还原版本。',
+  // 首页 dashboard 小组件
+  'content-manager.widget.last-edited.title': '最近编辑的条目',
+  'content-manager.widget.last-edited.single-type': '单一类型',
+  'content-manager.widget.last-edited.no-data': '暂无编辑的条目',
+  'content-manager.widget.last-published.title': '最近发布的条目',
+  'content-manager.widget.last-published.no-data': '暂无发布的条目',
+
+  // ── 系统排查补漏：@strapi/admin 核心包未翻译、会出现在后台界面的词条（key 不带插件前缀）──
+  // 首页
+  'HomePage.header.title': '你好，{name}',
+  'HomePage.header.subtitle': '欢迎使用管理后台',
+  'HomePage.widget.loading': '正在加载组件内容',
+  'HomePage.widget.error': '无法加载组件内容。',
+  'HomePage.widget.no-data': '未找到内容。',
+  // 全局
+  'global.home': '首页',
+  'global.error': '出错了',
+  'global.new': '新建',
+  'global.learn-more': '了解更多',
+  // 通用操作 / 状态
+  'app.utils.refresh': '刷新',
+  'app.utils.published': '已发布',
+  'app.utils.ready-to-publish': '可发布',
+  'app.utils.ready-to-publish-changes': '有改动待发布',
+  'app.utils.ready-to-unpublish-changes': '可取消发布',
+  'app.confirm.body': '确定吗？',
+  'components.ViewSettings.tooltip': '视图设置',
+  // 设置页
+  'Settings.profile.form.section.experience.mode.option-system-label': '跟随系统设置',
+  'Settings.content-history.title': '内容历史',
+  'Settings.content-history.description': '更好地掌控内容生命周期的每一步。',
+  'Settings.content-history.not-available': '内容历史仅在付费版中提供。升级后可全面掌控内容生命周期。',
+  'Settings.permissions.auditLogs.not-available':
+    '审计日志仅在付费版中提供。升级后可对所有操作进行可搜索、可筛选的展示。',
+  'Settings.sso.not-available':
+    '单点登录（SSO）仅在付费版中提供。升级后可为管理后台配置更多登录与注册方式。',
+  // NPS 调研弹窗
+  'app.components.NpsSurvey.banner-title': '你有多大可能向朋友或同事推荐 Strapi？',
+  'app.components.NpsSurvey.feedback-response': '非常感谢你的反馈！',
+  'app.components.NpsSurvey.feedback-question': '你有什么改进建议吗？',
+  'app.components.NpsSurvey.submit-feedback': '提交反馈',
+  'app.components.NpsSurvey.dismiss-survey-label': '关闭调查',
+  'app.components.NpsSurvey.no-recommendation': '完全不会',
+  'app.components.NpsSurvey.happy-to-recommend': '非常愿意',
+  // 筛选器操作符（筛选下拉，界面可见）
+  'components.FilterOptions.FILTER_TYPES.$containsi': '包含（不区分大小写）',
+  'components.FilterOptions.FILTER_TYPES.$endsWithi': '以…结尾（不区分大小写）',
+  'components.FilterOptions.FILTER_TYPES.$eqi': '等于（不区分大小写）',
+  'components.FilterOptions.FILTER_TYPES.$nei': '不等于（不区分大小写）',
+  'components.FilterOptions.FILTER_TYPES.$notContainsi': '不包含（不区分大小写）',
+  'components.FilterOptions.FILTER_TYPES.$startsWithi': '以…开头（不区分大小写）',
+  // 表单校验错误（{field} 占位保留）
+  'components.Input.error.validation.string': '不是有效的字符串。',
+  'components.Input.error.validation.email.withField': '{field} 不是有效的邮箱',
+  'components.Input.error.validation.json.withField': '{field} 不符合 JSON 格式',
+  'components.Input.error.validation.lowercase.withField': '{field} 必须是小写字符串',
+  'components.Input.error.validation.max.withField': '{field} 数值过大。',
+  'components.Input.error.validation.maxLength.withField': '{field} 过长。',
+  'components.Input.error.validation.min.withField': '{field} 数值过小。',
+  'components.Input.error.validation.minLength.withField': '{field} 过短。',
+  'components.Input.error.validation.minSupMax.withField': '{field} 不能更大',
+  'components.Input.error.validation.regex.withField': '{field} 不符合正则规则。',
+  'components.Input.error.validation.required.withField': '{field} 为必填项。',
+  'components.Input.error.validation.unique.withField': '{field} 已被使用。',
+  // 富文本编辑器（Blocks）工具栏 / 菜单
+  'components.Blocks.modifiers.bold': '加粗',
+  'components.Blocks.modifiers.italic': '斜体',
+  'components.Blocks.modifiers.underline': '下划线',
+  'components.Blocks.modifiers.strikethrough': '删除线',
+  'components.Blocks.modifiers.code': '行内代码',
+  'components.Blocks.link': '链接',
+  'components.Blocks.expand': '展开',
+  'components.Blocks.collapse': '收起',
+  'components.Blocks.popover.text': '文本',
+  'components.Blocks.popover.text.placeholder': '输入链接文字',
+  'components.Blocks.popover.link': '链接',
+  'components.Blocks.popover.link.placeholder': '粘贴链接',
+  'components.Blocks.popover.link.error': '请输入有效链接',
+  'components.Blocks.popover.remove': '移除',
+  'components.Blocks.popover.edit': '编辑',
+  'components.Blocks.blocks.selectBlock': '选择一个块',
+  'components.Blocks.blocks.text': '正文',
+  'components.Blocks.blocks.heading1': '标题 1',
+  'components.Blocks.blocks.heading2': '标题 2',
+  'components.Blocks.blocks.heading3': '标题 3',
+  'components.Blocks.blocks.heading4': '标题 4',
+  'components.Blocks.blocks.heading5': '标题 5',
+  'components.Blocks.blocks.heading6': '标题 6',
+  'components.Blocks.blocks.code': '代码块',
+  'components.Blocks.blocks.quote': '引用',
+  'components.Blocks.blocks.image': '图片',
+  'components.Blocks.blocks.unorderedList': '无序列表',
+  'components.Blocks.blocks.orderedList': '有序列表',
+  'components.Blocks.blocks.code.languageLabel': '选择语言',
+  'components.Blocks.dnd.instruction':
+    '要重新排序块，请按 Command 或 Control 加 Shift 以及上/下方向键',
+  'components.Blocks.dnd.reorder': '{item} 已移动。在编辑器中的新位置：{position}。',
+
+  // ── 浏览器实测补漏：代码实际用的 id 与 en 字典 key 不一致 / 走 defaultMessage，字典 diff 抓不到 ──
+  // 列表 STATUS 列头：渲染代码用 .status（en 字典里只有 .publishedAt，故 defaultMessage="Status"）。
+  'content-manager.containers.list.table-headers.status': '状态',
+  // 左侧「内容类型」搜索框：代码用 form.Input.search（不是 LeftMenu.Search.label）。两个都补。
+  'content-manager.form.Input.search': '搜索内容类型',
+  'content-manager.components.LeftMenu.Search.label': '搜索内容类型',
+  // 左侧菜单「Content-Type Builder」插件名（content-type-builder 插件，key 带该插件前缀）。
+  'content-type-builder.plugin.name': '内容类型构建器',
+  // 可重复组件「Add an entry」添加按钮(首页编排的首页区块等),en 字典有该 key 但官方 zh 漏译。
+  'content-manager.containers.EditView.add.new-entry': '添加条目',
 };
 
 export default {
