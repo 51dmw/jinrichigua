@@ -28,6 +28,7 @@ const TAGS = {
   articles: 'articles',
   home: 'home',
   adslots: 'adslots',
+  friendLinks: 'friendlinks',
 } as const;
 
 async function strapiGet<T>(
@@ -734,4 +735,56 @@ export async function getHomeBlocks(): Promise<HomeBlock[]> {
     }),
   );
   return blocks.filter((b): b is HomeBlock => b !== null).sort((a, b) => a.order - b.order);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Friend Links（友情链接 + 来路/去路统计，第1期）
+// ─────────────────────────────────────────────────────────────
+
+/** 友链（前台只读视图）。Strapi 5 响应已扁平化，字段直接平铺。 */
+export interface FriendLinkPublic {
+  documentId: string;
+  name: string;
+  url: string;
+  domain?: string | null;
+  code: string;
+  description?: string | null;
+  logo?: MediaImage | null;
+  order?: number | null;
+  enabled?: boolean;
+  /** true → 经 /go 统计去路；false → 直链不统计 */
+  track: boolean;
+  /** true 且未统计时输出 dofollow（保反链） */
+  dofollow: boolean;
+}
+
+/** 友链列表（仅已启用，按 order 升序）。供 FriendLinks 组件渲染。 */
+export async function getFriendLinks(): Promise<FriendLinkPublic[]> {
+  try {
+    const json = await strapiGet<StrapiListResponse<FriendLinkPublic>>(
+      `/friend-links?filters[enabled][$eq]=true&sort=order:asc&populate=logo&pagination[pageSize]=100`,
+      { tags: [TAGS.friendLinks] },
+    );
+    return json.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 按 code 查「已启用」友链真实 url（供 /go 去路跳转）。
+ * 实时查（不缓存）：友链改了 url / 停用应立刻生效，且 /go 是低频跳转。
+ * 查不到 / url 非法 → 返回 null（调用方回首页）。
+ */
+export async function getFriendLinkUrlByCode(code: string): Promise<string | null> {
+  try {
+    const json = await strapiGet<StrapiListResponse<{ url: string }>>(
+      `/friend-links?filters[code][$eq]=${encodeURIComponent(code)}&filters[enabled][$eq]=true&fields[0]=url&pagination[pageSize]=1`,
+      { revalidate: 0 },
+    );
+    const url = json.data?.[0]?.url ?? '';
+    return url.startsWith('http://') || url.startsWith('https://') ? url : null;
+  } catch {
+    return null;
+  }
 }

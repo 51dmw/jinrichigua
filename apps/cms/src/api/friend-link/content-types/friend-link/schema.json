@@ -1,0 +1,58 @@
+{
+  "kind": "collectionType",
+  "collectionName": "friend_links",
+  "info": {
+    "singularName": "friend-link",
+    "pluralName": "friend-links",
+    "displayName": "友情链接",
+    "description": "首页友情链接 + 来路/去路统计（第1期：埋点）"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "url": {
+      "type": "string",
+      "required": true
+    },
+    "domain": {
+      "type": "string"
+    },
+    "code": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "logo": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "allowedTypes": ["images"]
+    },
+    "description": {
+      "type": "text",
+      "maxLength": 500
+    },
+    "order": {
+      "type": "integer",
+      "default": 0
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "dofollow": {
+      "type": "boolean",
+      "default": false
+    },
+    "track": {
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

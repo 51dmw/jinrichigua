@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { GlobalSettings } from 'shared';
 import { getFeaturedTags } from '@/lib/strapi';
+import { FriendLinks } from './FriendLinks';
 
 type FooterLink = { label: string; href: string };
 
@@ -63,6 +64,9 @@ export async function SiteFooter({ global }: { global: GlobalSettings | null }) 
             ))}
           </div>
         ) : null}
+
+        {/* 友情链接（按 track 区分：走 /go 统计 或 直链保反链） */}
+        <FriendLinks />
 
         {/* 链接分栏 */}
         <div className="grid grid-cols-2 gap-4 border-t border-gray-200 pt-5 text-sm sm:grid-cols-4">

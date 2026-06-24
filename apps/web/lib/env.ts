@@ -6,6 +6,13 @@ export const STRAPI_API_URL = (process.env.STRAPI_API_URL ?? 'http://localhost:1
   '',
 );
 export const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN ?? '';
+
+/**
+ * 友链埋点共享密钥（友链统计第1期）。服务端调用 Strapi /api/friend-link/track 时
+ * 带 x-friend-track-secret 头，MUST 与 apps/cms 的 FRIEND_TRACK_SECRET 一致。
+ * 留空则前台不发埋点请求（开发环境无需配置）。
+ */
+export const FRIEND_TRACK_SECRET = process.env.FRIEND_TRACK_SECRET ?? '';
 export const REVALIDATE_TOKEN = process.env.REVALIDATE_TOKEN ?? '';
 export const REVALIDATE_SECONDS = Number(process.env.REVALIDATE_SECONDS ?? 120);
 
