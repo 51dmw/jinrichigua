@@ -800,15 +800,20 @@ const FIELD_LABELS_BASE: Record<string, string> = {
   // 友情链接
   url: '链接地址', domain: '站点域名', code: '渠道值', track: '统计去路',
   dofollow: '保留反链 (dofollow)', logo: '站点图标',
+  // 友链日统计（第2期）
+  date: '统计日期', linkId: '友链ID',
+  refInPv: '来路PV', refInUv: '来路UV', refOutPv: '去路PV', refOutUv: '去路UV',
 };
 // 同名字段在特定组件下的语义覆盖（避免歧义）
 const FIELD_LABELS_OVERRIDE: Record<string, Record<string, string>> = {
   'components::layout.home-block': { title: '区块标题', channel: '频道' },
+  // 日统计里 name 指「站点名称」（友链快照），区别于通用「名称」。
+  'api::friend-link-daily-stat.friend-link-daily-stat': { name: '站点名称' },
 };
 
 async function ensureChineseFieldLabels(strapi: StrapiApp) {
   const store = strapi.store({ type: 'type', name: 'setup' });
-  if (await store.get({ key: 'cnFieldLabelsV3HasRun' })) return;
+  if (await store.get({ key: 'cnFieldLabelsV4HasRun' })) return;
 
   const PREFIXES = [
     'plugin_content_manager_configuration_content_types::api::', // 仅本项目内容类型
@@ -850,7 +855,7 @@ async function ensureChineseFieldLabels(strapi: StrapiApp) {
       }
     }
   }
-  await store.set({ key: 'cnFieldLabelsV3HasRun', value: true });
+  await store.set({ key: 'cnFieldLabelsV4HasRun', value: true });
   strapi.log.info(`[bootstrap] 已应用后台字段中文标签（更新 ${touched} 个配置）`);
 }
 
