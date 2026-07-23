@@ -50,8 +50,8 @@ const nextConfig: NextConfig = {
         protocol: protocol.replace(':', '') as 'http' | 'https',
         hostname,
       },
-      // R2 / CDN 公网域名（M5 启用后按需补充）
-      // { protocol: 'https', hostname: 'media.example.com' },
+      // R2 媒体域（M5：Strapi 上传已切 R2，见 apps/cms/config/plugins.ts）
+      { protocol: 'https', hostname: 'img.sibian.xyz' },
     ],
   },
 };

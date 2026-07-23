@@ -13,9 +13,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@strapi/design-system": "2.0.0-rc.14",
     "@strapi/plugin-cloud": "5.7.0",
     "@strapi/plugin-seo": "^2.0.5",
     "@strapi/plugin-users-permissions": "5.7.0",
+    "@strapi/provider-upload-aws-s3": "^5.51.0",
     "@strapi/strapi": "5.7.0",
     "@strapi/utils": "5.7.0",
     "pg": "8.13.1",
@@ -24,8 +26,7 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
     "sharp": "0.32.6",
-    "styled-components": "^6.1.13",
-    "@strapi/design-system": "2.0.0-rc.14"
+    "styled-components": "^6.1.13"
   },
   "devDependencies": {
     "@strapi/typescript-utils": "5.7.0",
