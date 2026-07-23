@@ -73,7 +73,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ChannelNav channels={channels} />
         <main className="mx-auto w-full max-w-screen px-2 py-3 lg:max-w-5xl">{children}</main>
         <SiteFooter global={global} />
-        <Analytics metricaId={global?.yandexMetricaId} />
+        <Analytics metricaId={global?.yandexMetricaId} gaId={process.env.NEXT_PUBLIC_GA_ID} />
       </body>
     </html>
   );

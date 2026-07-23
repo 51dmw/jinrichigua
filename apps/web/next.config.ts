@@ -6,6 +6,9 @@ const { hostname, protocol } = new URL(strapiUrl);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // 构建输出目录可覆盖（安全部署用）：构建时写临时目录，成功后原子切换到 .next，
+  // 失败绝不污染线上运行的 .next。运行(next start)用默认 .next，见 scripts/deploy-web.sh。
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   // URL 规范化（SEO）：统一「无结尾斜杠」。
   trailingSlash: false,
   // 关掉 Next 自带的尾斜杠跳转，交给 middleware 一次性处理(小写+去尾斜杠+去重斜杠)，避免多跳。
