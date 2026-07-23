@@ -40,3 +40,5 @@ data/backups/
 .DS_Store
 *.log
 coverage/
+.gstack/
+scripts/hot-sync/state.json
