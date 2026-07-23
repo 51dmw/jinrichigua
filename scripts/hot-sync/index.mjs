@@ -247,7 +247,8 @@ const DEFAULT_WRITE_PROMPT = `你是吃瓜资讯站「今日吃瓜」的编辑�
 - 语气轻松会聊天，像朋友间分享，但不低俗
 - summary ≤120 字
 - slug：英文小写连字符，2~3 个词，尽量短（SEO 用）
-- tags：2~4 个，name 中文、slug 英文小写连字符
+- tags：2~4 个，name 中文、slug 英文小写连字符。**必须优先从下面「可复用标签库」里选**，尽量全部命中；标签要用「可跨事件复用的话题词/品类词」(如 明星、恋情、塌房、综艺、体育)，**不要用一次性的具体人名或单一事件词做标签**(如 某某某、某活动名)——那会产生只有一篇的孤岛标签页。最多只允许出现 1 个库里没有的新标签，且该新标签也必须是能被后续文章复用的通用词。
+  可复用标签库(优先复用)：{{taglib}}
 - seo.metaTitle ≤60 字符；seo.metaDescription ≤150 字符；seo.keywords 逗号分隔 3~6 个中文词
 
 只输出 JSON，不要任何其他文字。注意：content 里的换行必须转义为 \\n；标题和正文中一律使用中文引号「」或书名号《》，禁止出现英文双引号字符，确保整体是合法 JSON：
@@ -291,11 +292,12 @@ function pickPrompt(prompts, topics, n) {
   });
 }
 
-function writePrompt(prompts, sel, refs) {
+function writePrompt(prompts, sel, refs, tagLib = []) {
   return render(prompts.write, {
     topic: sel.topic,
     angle: sel.angle,
     refs: refs.map((r) => `- [${r.source}] ${r.title}${r.desc ? `：${r.desc}` : ''}`).join('\n'),
+    taglib: tagLib.join('、'),
   });
 }
 
@@ -324,14 +326,23 @@ async function main() {
   console.log(`[pick] 选出 ${picks.length} 个选题：${picks.map((p) => p.topic).join(' / ')}`);
   if (!picks.length) return console.log('[done] 无合适选题');
 
-  // 4. 基础数据（频道/作者/敏感词）
-  const [channels, authors, sensWords] = await Promise.all([
+  // 4. 基础数据（频道/作者/敏感词/标签库）
+  const [channels, authors, sensWords, allTags] = await Promise.all([
     fetchAllPages('/channels', '&fields[0]=name&fields[1]=slug'),
     fetchAllPages('/authors', '&fields[0]=name'),
     fetchAllPages('/sensitive-words', '&filters[enabled][$eq]=true&fields[0]=word'),
+    fetchAllPages('/tags', '&fields[0]=name&populate[articles][count]=true'),
   ]);
   const channelBySlug = Object.fromEntries(channels.map((c) => [c.slug, c]));
   const words = sensWords.map((w) => w.word).filter(Boolean);
+  // 标签治理（防孤岛）：已存在标签集合 + 推荐复用清单（按使用频次降序）注入 prompt，
+  // 引导 LLM 优先复用；配合入库时「每篇最多新建 1 个标签」的硬约束（见下方）。
+  const existingTagSet = new Set(allTags.map((t) => t.name));
+  const tagLib = allTags
+    .map((t) => ({ name: t.name, n: t.articles?.count ?? 0 }))
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 60)
+    .map((t) => t.name);
 
   // 5. 逐选题生成 + 入库
   const results = [];
@@ -339,7 +350,7 @@ async function main() {
     const refs = (sel.refs || []).map((i) => fresh[i]).filter(Boolean);
     if (!refs.length) continue;
     try {
-      const art = await llmJSON(writePrompt(prompts, sel, refs), `成文「${sel.topic}」`);
+      const art = await llmJSON(writePrompt(prompts, sel, refs, tagLib), `成文「${sel.topic}」`);
 
       // 敏感词过滤 → 命中写入 reviewNote 提示人工重点看
       const hit = words.filter((w) => art.title.includes(w) || art.content.includes(w) || (art.summary || '').includes(w));
@@ -352,16 +363,26 @@ async function main() {
       const clash = await strapi(`/articles?filters[slug][$eq]=${encodeURIComponent(slug)}&fields[0]=slug`);
       if (clash.data.length) slug = `${slug}-${new Date().toISOString().slice(5, 10).replace('-', '')}`;
 
-      // tags find-or-create
+      // tags：防孤岛硬约束——已存在的标签优先全部复用；本篇最多只新建 MAX_NEW_TAGS 个新标签，
+      // 超出的新标签直接丢弃（宁可标签少也不制造一次性孤岛）。
+      const MAX_NEW_TAGS = 1;
       const tagIds = [];
-      for (const t of (art.tags || []).slice(0, 4)) {
-        if (!t?.name) continue;
-        const found = await strapi(`/tags?filters[name][$eq]=${encodeURIComponent(t.name)}&fields[0]=name`);
+      let newCount = 0;
+      const wanted = (art.tags || []).map((t) => t?.name).filter(Boolean).slice(0, 4);
+      // 先复用已存在的
+      const reuse = wanted.filter((n) => existingTagSet.has(n));
+      const brandNew = wanted.filter((n) => !existingTagSet.has(n));
+      for (const name of reuse) {
+        const found = await strapi(`/tags?filters[name][$eq]=${encodeURIComponent(name)}&fields[0]=name`);
         if (found.data.length) tagIds.push(found.data[0].documentId);
-        else {
-          const created = await strapi('/tags', { method: 'POST', body: JSON.stringify({ data: { name: t.name, slug: String(t.slug || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-') || undefined } }) });
-          tagIds.push(created.data.documentId);
-        }
+      }
+      for (const name of brandNew) {
+        if (newCount >= MAX_NEW_TAGS) break; // 超额新标签丢弃，抑制孤岛
+        const src = (art.tags || []).find((t) => t?.name === name);
+        const created = await strapi('/tags', { method: 'POST', body: JSON.stringify({ data: { name, slug: String(src?.slug || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-') || undefined } }) });
+        tagIds.push(created.data.documentId);
+        existingTagSet.add(name); // 同轮后续文章即可复用它
+        newCount += 1;
       }
 
       // 封面：从素材条目采集第一张可下载的图（至少一图展示；全失败则无图发布）
