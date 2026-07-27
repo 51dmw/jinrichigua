@@ -14,7 +14,7 @@
  * 用法：node index.mjs [--limit 5] [--sources weibo,baidu,douyin,toutiao,zhihu] [--dry-run] [--backend claude|minimax]
  *      node index.mjs --upgrade-prompt   # 把后台「热榜二创配置」刷成内置新版 prompt（旧值备份进 note）
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -58,6 +58,8 @@ const LIMIT = Number(arg('limit', 5));
 const DRY = argv.includes('--dry-run');
 // 把后台「热榜二创配置」的 prompt 强制刷成脚本内置新版（旧值备份进 note 字段）
 const UPGRADE_PROMPT = argv.includes('--upgrade-prompt');
+// 只跑站内主题盘点补位（跳过热榜）——手动补量或验证补位逻辑时用
+const FILL_ONLY = argv.includes('--fill-only');
 // 自动发布：默认开（.env AUTO_PUBLISH=0 或 --draft 关闭）；命中敏感词的文章仍留草稿人工审核
 const AUTO_PUBLISH = !argv.includes('--draft') && (process.env.AUTO_PUBLISH ?? '1') !== '0';
 const BACKEND = arg('backend', CFG.backend);
@@ -90,6 +92,38 @@ async function fetchHotLists() {
     })
   );
   return all;
+}
+
+// ---------- 单实例锁 ----------
+// state.json 的去重状态只在每篇入库后才落盘，若两个实例并行（如 cron 跑着时手动又跑一次），
+// 后启动的那个会读到尚未更新的状态 → 选中同一个话题 → 产出重复文章（2026-07-27 实际踩到）。
+// 用排它创建的锁文件把并发挡住；锁超过 STALE_MS 视为上次崩溃遗留，可接管。
+const LOCK_FILE = join(DIR, '.run.lock');
+const LOCK_STALE_MS = 60 * 60 * 1000;
+
+let lockHeld = false; // 只有真正抢到锁的实例才有资格释放，否则会把别人的锁删掉
+
+function acquireLock() {
+  try {
+    writeFileSync(LOCK_FILE, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }), { flag: 'wx' });
+    lockHeld = true;
+    return true;
+  } catch (e) {
+    if (e.code !== 'EEXIST') throw e;
+    let age = Infinity;
+    try { age = Date.now() - new Date(JSON.parse(readFileSync(LOCK_FILE, 'utf8')).at).getTime(); } catch { /* 锁文件损坏 → 当作过期 */ }
+    if (age < LOCK_STALE_MS) return false;
+    console.warn(`[lock] 发现 ${Math.round(age / 60000)} 分钟前的残留锁，接管`);
+    writeFileSync(LOCK_FILE, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }));
+    lockHeld = true;
+    return true;
+  }
+}
+
+function releaseLock() {
+  if (!lockHeld) return; // 没抢到锁的实例不得删锁
+  try { if (existsSync(LOCK_FILE)) rmSync(LOCK_FILE); } catch { /* 释放失败不影响主流程，靠 STALE 兜底 */ }
+  lockHeld = false;
 }
 
 // ---------- 去重状态 ----------
@@ -152,6 +186,10 @@ async function llmJSON(prompt, label) {
         return parseJSON(fixed, `${label}(修复)`);
       }
     } catch (e) {
+      // 触发订阅限速时不要继续重试——重试只会把剩余配额烧光，直接中止本轮，等下一轮 cron
+      if (/rate.?limit|usage limit|too many requests|429|quota/i.test(e.message)) {
+        throw new Error(`RATE_LIMIT: ${e.message.slice(0, 120)}（已中止本轮，等下一轮 cron 重试）`);
+      }
       console.warn(`[warn] ${label} 第${i}次失败: ${e.message.slice(0, 200)}`);
       if (i === 3) throw e;
     }
@@ -471,6 +509,43 @@ function normalizePunct(s) {
     .replace(/([一-龥])\s*\?\s*/g, '$1？');
 }
 
+// ---------- 近重复守卫 ----------
+// 热榜同一事件换个说法会二次上榜，指纹去重（按标题原文）挡不住；
+// 2026-07-27 实际出现过「痞幼…能自证吗」与「痞幼…经得起求证吗」两篇几乎同题。
+// 这里用字符二元组 Jaccard 相似度，跟近期已发标题比一遍。
+function bigrams(s) {
+  const t = String(s || '').replace(/[\s\p{P}\p{S}]/gu, '');
+  const out = new Set();
+  for (let i = 0; i < t.length - 1; i++) out.add(t.slice(i, i + 2));
+  return out;
+}
+function similarity(a, b) {
+  const A = bigrams(a); const B = bigrams(b);
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const x of A) if (B.has(x)) inter += 1;
+  return inter / (A.size + B.size - inter);
+}
+// 阈值 0.30：用全量 262 条历史标题跑过分布——≥0.30 的 9 对全部是同一事件被写了两遍
+// （昆明吃菌子 0.76、詹姆斯签约 0.32/0.31、正颌手术 0.31、土耳其捅 6 刀 0.30…），
+// 0.30 以下没有真重复，误杀风险低。
+const DUP_THRESHOLD = 0.30;
+
+async function findNearDuplicate(title, n = 120) {
+  try {
+    const res = await strapi(`/articles?sort=createdAt:desc&pagination[pageSize]=${n}&fields[0]=title&fields[1]=slug`);
+    let best = null;
+    for (const a of res.data || []) {
+      const score = similarity(title, a.title);
+      if (score >= DUP_THRESHOLD && (!best || score > best.score)) best = { title: a.title, slug: a.slug, score };
+    }
+    return best;
+  } catch (e) {
+    console.warn(`[warn] 近重复检查失败（跳过）: ${e.message.slice(0, 60)}`);
+    return null;
+  }
+}
+
 // SEO 结构自检（对齐 p045 发布后检查清单 + p108 修复后检查标准 + p111 FAQ）
 function lintSeo(art, style) {
   const v = [];
@@ -533,6 +608,81 @@ function pickStyle(sel, state, usedThisRun) {
   const cand = fresh.length ? fresh : pool.filter((s) => !usedThisRun.has(s.key));
   const list = cand.length ? cand : pool;
   return list[Math.floor(Math.random() * list.length)];
+}
+
+// ---------- 站内主题补位选题 ----------
+// 热榜去重后新话题不够时的兜底：把站内同标签的多篇已发文章聚合成一篇盘点。
+// 刻意不做「换壳重写」（p112 的做法，已判定不采纳——那是站内重复内容）；
+// 盘点是真正的新内容：新的聚合视角 + 天然带一批指向成员文章的内链。
+const FILL_MIN_GROUP = 3;      // 同一标签+同一频道下至少几篇才够盘
+const FILL_COOLDOWN_DAYS = 7;  // 同一标签多少天内不重复盘
+const FILL_MAX_CHANNELS = 5;   // 标签跨频道数超过它 → 判为泛标签，盘出来会是大杂烩
+// 兜底黑名单（跨频道判据之外的显式排除；这几个是站内最典型的万金油标签）
+const FILL_TAG_STOPLIST = new Set(['网络热议', '热搜', '吃瓜', '围观', '微博热搜', '大瓜', '出圈', '热榜']);
+
+async function buildFillPicks(need, state) {
+  if (need <= 0) return [];
+  try {
+    const res = await strapi('/articles?sort=publishAt:desc&pagination[pageSize]=100'
+      + '&fields[0]=title&fields[1]=slug&fields[2]=summary'
+      + '&populate[tags][fields][0]=name&populate[channel][fields][0]=slug&populate[cover][fields][0]=id');
+    const arts = (res.data || []).filter((a) => a.slug && a.channel?.slug);
+
+    // 按标签分组
+    const byTag = new Map();
+    for (const a of arts) {
+      for (const t of a.tags || []) {
+        if (!t?.name) continue;
+        if (!byTag.has(t.name)) byTag.set(t.name, []);
+        byTag.get(t.name).push(a);
+      }
+    }
+
+    const cooling = new Set(
+      (state.fills || [])
+        .filter((f) => Date.now() - new Date(f.at).getTime() < FILL_COOLDOWN_DAYS * 86400000)
+        .map((f) => f.tag),
+    );
+
+    // 主题连贯性过滤：泛标签（如「网络热议」铺满 11 个频道）盘出来是大杂烩，
+    // 只保留「跨频道少」的主题标签，且成员必须落在同一个频道内。
+    const groups = [];
+    for (const [tag, list] of byTag) {
+      if (cooling.has(tag) || FILL_TAG_STOPLIST.has(tag)) continue;
+      const channels = new Set(list.map((a) => a.channel.slug));
+      if (channels.size > FILL_MAX_CHANNELS) continue;
+      // 取该标签下成员最多的频道，只用这个频道的文章
+      const byCh = new Map();
+      for (const a of list) byCh.set(a.channel.slug, [...(byCh.get(a.channel.slug) || []), a]);
+      const [channelSlug, sameCh] = [...byCh.entries()].sort((a, b) => b[1].length - a[1].length)[0];
+      if (sameCh.length < FILL_MIN_GROUP) continue;
+      groups.push({ tag, channelSlug, list: sameCh });
+    }
+
+    return groups
+      .sort((a, b) => b.list.length - a.list.length)
+      .slice(0, need)
+      .map(({ tag, channelSlug, list }) => {
+        const members = list.slice(0, 5);
+        return {
+          kind: 'fill',
+          tag,
+          topic: `「${tag}」最近的这几件事`,
+          angle: '把站内近期同类事件串成一篇盘点，交代每件事的要点与共同点',
+          channelSlug,
+          coverId: members.find((m) => m.cover?.id)?.cover?.id ?? null,
+          materials: members.map((m) => ({
+            source: '本站',
+            title: m.title,
+            desc: m.summary || '',
+            path: `/${m.channel.slug}/${m.slug}`,
+          })),
+        };
+      });
+  } catch (e) {
+    console.warn(`[warn] 站内补位选题构建失败: ${e.message.slice(0, 100)}`);
+    return [];
+  }
 }
 
 // ---------- 内链候选集 ----------
@@ -696,20 +846,38 @@ async function main() {
   }
   console.log(`[hot-sync] backend=${BACKEND} limit=${LIMIT} dry=${DRY} sources=${SOURCE_KEYS.join(',')}`);
 
-  // 1. 同步热榜
-  const topics = await fetchHotLists();
-  if (!topics.length) throw new Error('所有热榜源都拉取失败');
+  // 并发保护：dry-run 不写状态，不必占锁
+  if (!DRY && !acquireLock()) {
+    return console.log('[skip] 已有一个实例在跑（.run.lock 存在），本次退出——避免选到同一话题产出重复文章');
+  }
+
+  // 1. 同步热榜（--fill-only 时跳过，直接走站内补位）
+  const topics = FILL_ONLY ? [] : await fetchHotLists();
+  if (!FILL_ONLY && !topics.length) throw new Error('所有热榜源都拉取失败');
 
   // 2. 去重（跑过的话题不再生成）
   const state = loadState();
   const fresh = topics.filter((t) => !state.done[fingerprint(t.title)]);
   console.log(`[dedup] ${topics.length} 条热榜 → ${fresh.length} 条新话题`);
-  if (!fresh.length) return console.log('[done] 没有新话题');
 
   // 3. LLM 选题（prompt 优先取后台「热榜二创配置」）
   const prompts = await loadPrompts();
-  const picks = (await llmJSON(pickPrompt(prompts, fresh, LIMIT), '选题')).slice(0, LIMIT);
-  console.log(`[pick] 选出 ${picks.length} 个选题：${picks.map((p) => p.topic).join(' / ')}`);
+  let picks = [];
+  if (FILL_ONLY) {
+    console.log('[fill-only] 跳过热榜选题，只跑站内主题盘点');
+  } else if (fresh.length) {
+    picks = (await llmJSON(pickPrompt(prompts, fresh, LIMIT), '选题')).slice(0, LIMIT);
+    console.log(`[pick] 选出 ${picks.length} 个选题：${picks.map((p) => p.topic).join(' / ')}`);
+  } else {
+    console.log('[dedup] 热榜无新话题');
+  }
+
+  // 3b. 热榜不够 → 用站内同主题文章聚合成盘点补位
+  const fills = await buildFillPicks(LIMIT - picks.length, state);
+  if (fills.length) {
+    console.log(`[fill] 热榜缺 ${LIMIT - picks.length} 篇，补位站内主题盘点：${fills.map((f) => f.tag).join(' / ')}`);
+    picks = picks.concat(fills);
+  }
   if (!picks.length) return console.log('[done] 无合适选题');
 
   // 4. 基础数据（频道/作者/敏感词/标签库）
@@ -735,13 +903,21 @@ async function main() {
   const usedStyles = new Set();
   const results = [];
   for (const sel of picks) {
-    const refs = (sel.refs || []).map((i) => fresh[i]).filter(Boolean);
+    // 补位选题的素材是站内文章本身；热榜选题的素材是榜单条目
+    const refs = sel.kind === 'fill' ? sel.materials : (sel.refs || []).map((i) => fresh[i]).filter(Boolean);
     if (!refs.length) continue;
     try {
-      const style = pickStyle(sel, state, usedStyles);
+      // 补位选题固定用「瓜串盘点」体裁——它就是为聚合多条内容设计的
+      const style = sel.kind === 'fill'
+        ? WRITE_STYLES.find((s) => s.key === 'roundup')
+        : pickStyle(sel, state, usedStyles);
       usedStyles.add(style.key);
-      console.log(`[style] 「${sel.topic}」→ ${style.name}(${style.key})`);
-      const linkCands = await fetchLinkCandidates(sel.channelSlug);
+      console.log(`[style] 「${sel.topic}」→ ${style.name}(${style.key})${sel.kind === 'fill' ? ' [站内补位]' : ''}`);
+      // 补位篇：成员文章优先进内链候选，保证盘点能链回被盘的每一篇
+      const linkCands = sel.kind === 'fill'
+        ? [...sel.materials.map((m) => ({ title: m.title, path: m.path })),
+           ...(await fetchLinkCandidates(sel.channelSlug))]
+        : await fetchLinkCandidates(sel.channelSlug);
       const basePrompt = writePrompt(prompts, sel, refs, tagLib, style, recentSignals, linkCands);
       let art = await llmJSON(basePrompt, `成文「${sel.topic}」`);
 
@@ -765,6 +941,15 @@ async function main() {
       art.title = normalizePunct(art.title);
       art.summary = normalizePunct(art.summary);
       art.content = normalizePunct(art.content);
+
+      // 近重复守卫：与近期已发文章高度同题的直接丢弃，不入库（站内重复内容对 SEO 是负分）
+      const dup = await findNearDuplicate(art.title);
+      if (dup) {
+        console.warn(`[dup] 「${art.title}」与已发《${dup.title}》相似度 ${dup.score.toFixed(2)}，丢弃不入库`);
+        for (const r of refs) if (r.title) state.done[fingerprint(r.title)] = { t: r.title.slice(0, 30), at: new Date().toISOString(), doc: 'dup-skip' };
+        writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+        continue;
+      }
 
       // 内链净化：剔除编造路径；不足 2 条时用「相关阅读」兜底（p045：每篇 2~3 条内链）
       const cleaned = sanitizeLinks(art.content, linkCands);
@@ -815,7 +1000,9 @@ async function main() {
       // 封面：从素材条目采集第一张可下载的图（至少一图展示；全失败则无图发布）
       let coverId = null;
       let coverSrc = '';
-      if (!DRY) {
+      if (!DRY && sel.kind === 'fill') {
+        coverId = sel.coverId; // 补位篇复用成员文章的封面，不重复采集
+      } else if (!DRY) {
         for (const r of refs) {
           if (!r.cover) continue;
           coverId = await uploadCover(r.cover, slug);
@@ -864,17 +1051,32 @@ async function main() {
       } else {
         const created = await strapi(`/articles${publish ? '?status=published' : ''}`, { method: 'POST', body: JSON.stringify({ data }) });
         console.log(`[save] ${publish ? '已发布' : '草稿'} ✓ ${art.title} /${sel.channelSlug}/${slug} (${created.data.documentId})${hit.length ? ` ⚠️敏感词:${hit.join('、')}` : ''}`);
-        for (const r of refs) state.done[fingerprint(r.title)] = { t: r.title.slice(0, 30), at: new Date().toISOString(), doc: created.data.documentId };
+        if (sel.kind === 'fill') {
+          // 同一标签 FILL_COOLDOWN_DAYS 天内不再盘第二次
+          state.fills = [...(state.fills || []), { tag: sel.tag, at: new Date().toISOString() }].slice(-60);
+        } else {
+          for (const r of refs) state.done[fingerprint(r.title)] = { t: r.title.slice(0, 30), at: new Date().toISOString(), doc: created.data.documentId };
+        }
         // 体裁使用记录（只留最近 40 条，供下一轮避重）
         state.styles = [...(state.styles || []), { k: style.key, at: new Date().toISOString() }].slice(-40);
         writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
       }
       results.push(art.title);
     } catch (e) {
+      // 限速要整轮中止，不能继续往下跑——否则剩余选题会挨个再撞一次限速
+      if (e.message.startsWith('RATE_LIMIT')) {
+        console.error(`[abort] ${e.message}`);
+        break;
+      }
       console.error(`[error] 「${sel.topic}」失败: ${e.message}`);
     }
   }
   console.log(`[done] 生成 ${results.length}/${picks.length} 篇${DRY ? '（dry-run 未入库）' : AUTO_PUBLISH ? '（自动发布开启，敏感词命中者留草稿）' : '，已入草稿箱等待审核（reviewState=pending）'}`);
 }
 
-main().catch((e) => { console.error(`[fatal] ${e.message}`); process.exit(1); });
+// 用 exitCode 而不是 process.exit()，保证 finally 里的解锁一定执行
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { releaseLock(); process.exit(130); });
+
+main()
+  .catch((e) => { console.error(`[fatal] ${e.message}`); process.exitCode = 1; })
+  .finally(releaseLock);
