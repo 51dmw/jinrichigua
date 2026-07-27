@@ -34,11 +34,21 @@ async function pingRevalidate(strapi: any, result: AnyResult) {
   const articleSlug = result?.slug;
 
   try {
-    await fetch(url, {
+    // redirect:'manual' + 检查 res.ok：2026-07-27 踩过——域名迁移后本地址仍指向老域，
+    // 老域 301 到新域时跨源重定向会丢掉 Authorization 头，前台返回 401；
+    // 而原实现既不看状态码也不禁重定向，401 被当成成功，静默失效了四天。
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ type: 'article', channelSlug, articleSlug }),
+      redirect: 'manual',
     });
+    if (!res.ok) {
+      strapi?.log?.warn(
+        `[lifecycle] revalidate ping 未生效：HTTP ${res.status}（${url}）`
+          + `${res.status >= 300 && res.status < 400 ? ' —— 该地址发生重定向，请把 WEB_REVALIDATE_URL 改成最终域名' : ''}`,
+      );
+    }
   } catch (err) {
     strapi?.log?.warn(`[lifecycle] revalidate ping failed: ${(err as Error).message}`);
   }
