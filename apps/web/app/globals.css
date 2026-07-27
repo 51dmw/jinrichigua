@@ -20,8 +20,23 @@ body {
 .article-body h2 {
   @apply mb-2 mt-4 text-lg font-bold;
 }
+.article-body h3 {
+  @apply mb-2 mt-4 text-base font-bold;
+}
+.article-body h4 {
+  @apply mb-2 mt-3 text-[15px] font-bold;
+}
 .article-body p {
   @apply my-3;
+}
+.article-body li {
+  @apply my-1;
+}
+.article-body a {
+  @apply text-brand underline underline-offset-2;
+}
+.article-body strong {
+  @apply font-bold text-gray-900;
 }
 .article-body img {
   @apply my-3 h-auto max-w-full rounded;
