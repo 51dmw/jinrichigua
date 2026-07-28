@@ -2,16 +2,19 @@
 /**
  * 热榜同步二创脚本（scripts/hot-sync）
  *
- * 管线：60s API 热榜同步 → LLM 选题(过滤时政敏感/合并跨榜同事件) → LLM 二创成文
+ * 管线：热榜/新闻流同步 → LLM 选题(过滤时政敏感/合并跨源同事件) → LLM 二创成文
  *      → 敏感词过滤 → Strapi REST 写入草稿(reviewState=pending) → 后台人工审核发布。
+ *
+ * 采集源：五个热榜走 60s API（weibo/baidu/douyin/toutiao/zhihu），
+ *      凤凰娱乐·明星（ifengent）自带取数——只取标题作选题线索，不抓正文。
  *
  * 写入只经 Strapi REST API（符合 DEVELOPMENT_CONSTRAINTS §数据流约束），不直连数据库。
  * 生成后端可插拔：claude（默认，走本机 Claude Code Max 订阅）/ minimax（OpenAI 兼容，需余额）。
  *
- * 反雷同：一篇一体裁（WRITE_STYLES 10 种，按频道亲和 + 最近用过的不重复轮换）+ 全局禁令
+ * 反雷同：一篇一体裁（WRITE_STYLES 13 种，按频道亲和 + 最近用过的不重复轮换）+ 全局禁令
  *      + 把最近 20 篇的标题/开头作为「已用写法」注入禁令，防止模型长出新套路。
  *
- * 用法：node index.mjs [--limit 5] [--sources weibo,baidu,douyin,toutiao,zhihu] [--dry-run] [--backend claude|minimax]
+ * 用法：node index.mjs [--limit 5] [--sources weibo,baidu,douyin,toutiao,zhihu,ifengent] [--dry-run] [--backend claude|minimax]
  *      node index.mjs --upgrade-prompt   # 把后台「热榜二创配置」刷成内置新版 prompt（旧值备份进 note）
  */
 import { readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
@@ -63,7 +66,7 @@ const FILL_ONLY = argv.includes('--fill-only');
 // 自动发布：默认开（.env AUTO_PUBLISH=0 或 --draft 关闭）；命中敏感词的文章仍留草稿人工审核
 const AUTO_PUBLISH = !argv.includes('--draft') && (process.env.AUTO_PUBLISH ?? '1') !== '0';
 const BACKEND = arg('backend', CFG.backend);
-const SOURCE_KEYS = arg('sources', 'weibo,baidu,douyin,toutiao,zhihu').split(',').map((s) => s.trim());
+const SOURCE_KEYS = arg('sources', 'weibo,baidu,douyin,toutiao,zhihu,ifengent').split(',').map((s) => s.trim());
 
 // ---------- 热榜源适配（60s API，字段各端点不同） ----------
 const SOURCES = {
@@ -72,6 +75,10 @@ const SOURCES = {
   douyin:  { path: 'douyin',    name: '抖音热点', map: (i) => ({ title: i.title, heat: i.hot_value || 0, link: i.link || '', desc: '', cover: i.cover || '' }) },
   toutiao: { path: 'toutiao',   name: '头条热榜', map: (i) => ({ title: i.title, heat: i.hot_value || 0, link: i.link || '', desc: '', cover: i.cover || '' }) },
   zhihu:   { path: 'zhihu',     name: '知乎热榜', map: (i) => ({ title: i.title, heat: 0, link: i.link || '', desc: (i.detail || '').slice(0, 120), cover: i.cover || '' }) },
+  // 凤凰娱乐不在 60s API 里，自带取数（见 fetchIfengEnt）。
+  // 它和上面五个的性质不同：是新闻流不是热榜，没有热度值，只能按发布时间倒序取。
+  // 好处是条目本身经过编辑筛选，比微博热搜的一句话词条更像「一件事」。
+  ifengent: { name: '凤凰娱乐', fetch: fetchIfengEnt },
 };
 
 async function fetchHotLists() {
@@ -81,17 +88,72 @@ async function fetchHotLists() {
       const src = SOURCES[key];
       if (!src) return console.warn(`[warn] 未知源 ${key}，跳过`);
       try {
-        const res = await fetch(`${CFG.hotApiBase}/${src.path}`, { signal: AbortSignal.timeout(15000) });
-        const json = await res.json();
-        if (json.code !== 200 || !Array.isArray(json.data)) throw new Error(`code=${json.code}`);
-        for (const item of json.data.slice(0, 20)) all.push({ source: src.name, ...src.map(item) });
-        console.log(`[sync] ${src.name}: ${Math.min(json.data.length, 20)} 条`);
+        const items = src.fetch ? await src.fetch() : await fetch60s(src);
+        for (const item of items) all.push({ source: src.name, ...item });
+        console.log(`[sync] ${src.name}: ${items.length} 条`);
       } catch (e) {
         console.warn(`[warn] ${src.name} 拉取失败: ${e.message}`);
       }
     })
   );
   return all;
+}
+
+// 60s API 系（weibo/baidu/douyin/toutiao/zhihu）：统一端点，各自 map 字段
+async function fetch60s(src) {
+  const res = await fetch(`${CFG.hotApiBase}/${src.path}`, { signal: AbortSignal.timeout(15000) });
+  const json = await res.json();
+  if (json.code !== 200 || !Array.isArray(json.data)) throw new Error(`code=${json.code}`);
+  return json.data.slice(0, 20).map(src.map);
+}
+
+// ---------- 凤凰网娱乐·明星（ent.ifeng.com/star/）----------
+// 页面把列表数据以 "newsstream":[...] 的形式内联在 HTML 里，字段齐整（含发布时间和封面），
+// 比解析 DOM 稳。只取标题/链接/时间/封面当**选题线索**，不抓正文——
+// 抓正文再改写就从「选题参考」变成洗稿了，风险性质完全不同。
+const IFENG_ENT_URL = 'https://ent.ifeng.com/star/';
+const IFENG_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+// 从 from 处截出一个配平的 JSON 数组。字符串内的方括号不能参与配平，
+// 标题里出现「[]」并不罕见，所以要跟踪引号和转义状态。
+function sliceJsonArray(s, from) {
+  let depth = 0, inStr = false, esc = false;
+  for (let i = from; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === '[') depth++;
+    else if (c === ']' && --depth === 0) return s.slice(from, i + 1);
+  }
+  return null;
+}
+
+async function fetchIfengEnt() {
+  const res = await fetch(IFENG_ENT_URL, {
+    headers: { 'User-Agent': IFENG_UA },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const html = await res.text();
+  const k = html.indexOf('"newsstream"');
+  if (k < 0) throw new Error('页面结构变了：找不到 newsstream');
+  const raw = sliceJsonArray(html, html.indexOf('[', k));
+  if (!raw) throw new Error('newsstream 数组未配平');
+  return JSON.parse(raw)
+    .filter((x) => x.type === 'article' && x.title && x.url)
+    .slice(0, 20)
+    .map((x) => ({
+      title: String(x.title).trim(),
+      heat: 0, // 新闻流没有热度值，选题 prompt 里会渲染成 '-'
+      link: x.url,
+      desc: [x.source, (x.newsTime || '').slice(5, 16)].filter(Boolean).join(' ').trim(),
+      cover: x.thumbnails?.image?.[0]?.url || '',
+    }));
 }
 
 // ---------- 单实例锁 ----------
@@ -997,8 +1059,12 @@ async function main() {
       const dup = await findNearDuplicate(art.title);
       if (dup) {
         console.warn(`[dup] 「${art.title}」与已发《${dup.title}》相似度 ${dup.score.toFixed(2)}，丢弃不入库`);
-        for (const r of refs) if (r.title) state.done[fingerprint(r.title)] = { t: r.title.slice(0, 30), at: new Date().toISOString(), doc: 'dup-skip' };
-        writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+        // 这条路径原先无条件落盘，导致 --dry-run 会把选题标记成 done、污染下一次真实运行的去重状态。
+        // 与下面的正常入库分支对齐，dry-run 一律不写盘。
+        if (!DRY) {
+          for (const r of refs) if (r.title) state.done[fingerprint(r.title)] = { t: r.title.slice(0, 30), at: new Date().toISOString(), doc: 'dup-skip' };
+          writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+        }
         continue;
       }
 
