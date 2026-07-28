@@ -151,7 +151,9 @@ async function fetchIfengEnt() {
       title: String(x.title).trim(),
       heat: 0, // 新闻流没有热度值，选题 prompt 里会渲染成 '-'
       link: x.url,
-      desc: [x.source, (x.newsTime || '').slice(5, 16)].filter(Boolean).join(' ').trim(),
+      // 只给来源媒体号，不给发布时间：时间对选题没用，却会被模型当成事实写进正文
+      // （2026-07-28 实际产出过「发布时间卡得很准, 07-28 09:29」这种句子）。
+      desc: (x.source || '').trim(),
       cover: x.thumbnails?.image?.[0]?.url || '',
     }));
 }
@@ -475,6 +477,10 @@ const WRITE_STYLES = [
   // 我们这边法律和口碑风险都不划算，三个体裁的 bans 里都明令禁掉。
   {
     key: 'scorecard', name: '作品成绩单', channels: ['star', 'oversea', 'influencer', 'video'],
+    // 选题必须真有「作品 + 成绩」可写。2026-07-28 首次上线当天就踩坑：
+    // 「虞书欣工作室 AI 肖像侵权声明」被分到本体裁，通篇在承认「一个数字都没有」。
+    // 频道对不代表选题对——这三个新体裁是选题依赖的，不是频道依赖的。
+    requires: /剧|影|片|综艺|电影|票房|播放|收视|评分|豆瓣|开播|上映|定档|首播|成绩|战绩|销量|专辑|演唱会|榜/,
     faq: true,
     role: '你是盯作品数据的娱乐观察编辑，读者要的是「这部作品到底成没成，数字说了算」。',
     structure: [
@@ -489,6 +495,8 @@ const WRITE_STYLES = [
   },
   {
     key: 'cohort', name: '一代人切片', channels: ['star', 'influencer', 'sports', 'oversea', 'society'],
+    // 必须真的是一批人/一类现象，单人单事套上去会硬凑同类案例
+    requires: /一代|这批|群体|们|集体|多位|多名|接连|纷纷|扎堆|花|生|顶流|中生代|新人|前辈|同期/,
     role: '你是做群体现象观察的编辑，擅长从一个人身上看出一批人的共同处境。',
     structure: [
       '从眼下这个具体的人或事切入，1 段说清',
@@ -503,6 +511,8 @@ const WRITE_STYLES = [
   },
   {
     key: 'arc', name: '口碑曲线', channels: ['star', 'influencer', 'sports', 'oversea', 'history'],
+    // 必须真有事业起落可描，突发单一事件套上去会编履历
+    requires: /复出|翻红|塌房|过气|转型|回归|退圈|息影|沉寂|巅峰|下滑|翻车|事业|口碑|人气|资源|多年|当年|昔日|再度/,
     faq: true,
     role: '你是跟事业曲线的编辑，读者要看的是「这个人是怎么一步步走到今天这个位置的」。',
     structure: [
@@ -715,7 +725,13 @@ function lintStyle(art) {
 const RECENT_STYLE_WINDOW = 6;
 function pickStyle(sel, state, usedThisRun) {
   const recent = (state.styles || []).slice(-RECENT_STYLE_WINDOW).map((s) => s.k);
-  const fit = WRITE_STYLES.filter((s) => s.channels === '*' || s.channels.includes(sel.channelSlug));
+  const topicText = `${sel.topic ?? ''} ${sel.angle ?? ''}`;
+  const fit = WRITE_STYLES.filter(
+    (s) =>
+      (s.channels === '*' || s.channels.includes(sel.channelSlug)) &&
+      // 选题门槛：频道对不代表选题对（见 requires 的说明）
+      (!s.requires || s.requires.test(topicText)),
+  );
   const pool = fit.length ? fit : WRITE_STYLES;
   const fresh = pool.filter((s) => !recent.includes(s.key) && !usedThisRun.has(s.key));
   const cand = fresh.length ? fresh : pool.filter((s) => !usedThisRun.has(s.key));
