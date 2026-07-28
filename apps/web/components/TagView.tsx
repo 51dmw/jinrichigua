@@ -54,6 +54,7 @@ export async function TagView({ slug, page }: { slug: string; page: number }) {
           data={itemListJsonLd(
             items.map((a) => ({ name: a.title, path: `/${a.channel?.slug ?? 'news'}/${a.slug}` })),
             `标签：${name}`,
+            base,
           )}
         />
         <h1 className="mb-2 border-l-4 border-brand pl-2 text-lg font-bold">{name}</h1>

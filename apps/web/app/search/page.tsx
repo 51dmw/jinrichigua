@@ -26,9 +26,11 @@ export async function generateMetadata({ searchParams }: { searchParams: SP }): 
       ? `“${q}” 的站内搜索结果 —— 在今日吃瓜查找明星娱乐、网红达人、社会大瓜等全网吃瓜内容。`
       : '在今日吃瓜站内搜索明星娱乐、网红达人、社会大瓜、爆料内幕等全网热点与爆料内容。',
     path: '/search',
+    // 站内搜索结果页 MUST noindex（避免重复/低质页被索引）。
+    // 必须在这里传入而非事后覆盖 —— resolveMetadata 要靠它决定不输出 hreflang（#57）。
+    robots: { index: false, follow: true },
   });
-  // 站内搜索结果页 MUST noindex（避免重复/低质页被索引）
-  return { ...meta, robots: { index: false, follow: true } };
+  return meta;
 }
 
 export default async function SearchPage({ searchParams }: { searchParams: SP }) {

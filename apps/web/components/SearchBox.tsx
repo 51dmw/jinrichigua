@@ -9,8 +9,14 @@ export function SearchBox({ initial = '', className = '' }: { initial?: string; 
   const [q, setQ] = useState(initial);
 
   return (
+    // action/method/name 三件套是原生兜底（SEO 审计 #38）：禁用 JS 或爬虫解析时，
+    // 表单仍能 GET 提交到 /search?q=…。也让 WebSite.potentialAction 里声明的
+    // SearchAction 名副其实——之前只有 onSubmit，声明了搜索能力却没有可提交的表单。
+    // JS 可用时下面的 onSubmit 会 preventDefault 走客户端路由，行为不变。
     <form
       role="search"
+      action="/search"
+      method="get"
       onSubmit={(e) => {
         e.preventDefault();
         const t = q.trim();
@@ -20,6 +26,7 @@ export function SearchBox({ initial = '', className = '' }: { initial?: string; 
     >
       <input
         type="search"
+        name="q"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="搜索新闻"

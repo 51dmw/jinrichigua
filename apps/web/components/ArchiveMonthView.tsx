@@ -63,6 +63,7 @@ export async function ArchiveMonthView({
           data={itemListJsonLd(
             items.map((a) => ({ name: a.title, path: `/${a.channel?.slug ?? 'news'}/${a.slug}` })),
             `${label}文章归档`,
+            base,
           )}
         />
         <h1 className="mb-2 border-l-4 border-brand pl-2 text-lg font-bold">{label} · 文章归档</h1>

@@ -84,6 +84,7 @@ export default async function HotPage() {
           data={itemListJsonLd(
             items.map((a) => ({ name: a.title, path: `/${a.channel?.slug ?? 'news'}/${a.slug}` })),
             '吃瓜热榜',
+            '/hot',
           )}
         />
         {/* 顶部横幅 */}
