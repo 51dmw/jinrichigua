@@ -71,6 +71,10 @@ export async function POST(req: NextRequest) {
     urls.push(`${SITE_URL}/${body.channelSlug}/${body.articleSlug}`);
   }
   if (body.channelSlug) urls.push(`${SITE_URL}/${body.channelSlug}`);
+  // 首页永远受影响（列表页含最新文章、global 改动影响全站 head），
+  // 上面已 revalidatePath('/')，这里同步告知搜索引擎。
+  // 注意用 SITE_URL 原样（无尾斜杠），与首页 canonical / sitemap 的形式保持一致。
+  urls.push(SITE_URL);
   if (urls.length > 0) {
     indexNow = await submitToIndexNow(urls);
   }
