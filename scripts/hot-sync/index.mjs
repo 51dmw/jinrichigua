@@ -17,8 +17,9 @@
  * 用法：node index.mjs [--limit 5] [--sources weibo,baidu,douyin,toutiao,zhihu,ifengent] [--dry-run] [--backend claude|minimax]
  *      node index.mjs --upgrade-prompt   # 把后台「热榜二创配置」刷成内置新版 prompt（旧值备份进 note）
  */
-import { readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, rmSync, unlinkSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -301,6 +302,35 @@ async function uploadMedia(url, name) {
 async function uploadCover(url, name) {
   const m = await uploadMedia(url, name);
   return m?.id ?? null;
+}
+
+// 素材一张图都采不到时的兜底：本地渲染品牌标题卡再上传（见 gen_cover.py 的取舍说明）。
+// 与 uploadMedia 分开写，因为它不走网络下载，失败原因和重试语义都不一样。
+async function uploadTitleCard(title, slug, channelName) {
+  const tmp = join(tmpdir(), `card-${slug}-${process.pid}.jpg`);
+  try {
+    await new Promise((resolve, reject) => {
+      const p = spawn('python3', [join(DIR, 'gen_cover.py'), title, tmp, channelName || ''], { cwd: DIR });
+      let err = '';
+      p.stderr.on('data', (d) => (err += d));
+      p.on('close', (c) => (c === 0 ? resolve() : reject(new Error(`gen_cover 退出码 ${c}: ${err.slice(0, 160)}`))));
+    });
+    const form = new FormData();
+    form.append('files', new Blob([readFileSync(tmp)], { type: 'image/jpeg' }), `cover-${slug}.jpg`);
+    // alt 用标题：无障碍与图片 SEO 都要，绝不留空
+    form.append('fileInfo', JSON.stringify({ alternativeText: title, caption: title }));
+    const up = await fetch(`${CFG.strapiUrl}/api/upload`, {
+      method: 'POST', headers: { Authorization: `Bearer ${CFG.strapiToken}` }, body: form,
+    });
+    const json = await up.json();
+    if (!up.ok) throw new Error(`upload ${up.status}`);
+    return json[0]?.id ?? null;
+  } catch (e) {
+    console.warn(`[warn] 标题卡生成失败: ${e.message}`);
+    return null;
+  } finally {
+    try { if (existsSync(tmp)) unlinkSync(tmp); } catch { /* 清理失败不影响主流程 */ }
+  }
 }
 
 // ---------- Strapi REST ----------
@@ -1153,7 +1183,19 @@ async function main() {
           coverId = await uploadCover(r.cover, slug);
           if (coverId) { coverSrc = r.cover; break; }
         }
-        if (!coverId) console.warn(`[warn] 「${sel.topic}」素材无可用封面图`);
+        // 兜底：素材一张图都采不到就渲染品牌标题卡（见 gen_cover.py）。
+        // 微博源是常态触发者——60s API 的微博端点只返回 title/hot_value/link，
+        // 根本没有图片字段，纯微博选题从一开始就无图可采（曾占无封面文章的 90%）。
+        // 刻意不去图库抓真人照片：本站写真实人物，来源不明的配图有版权和张冠李戴双重风险。
+        if (!coverId) {
+          const chName = (CHANNELS_DESC.find(([cs]) => cs === sel.channelSlug)?.[1] || '').split('（')[0];
+          coverId = await uploadTitleCard(art.title, slug, chName);
+          console.warn(
+            coverId
+              ? `[cover] 「${sel.topic}」素材无图，已生成品牌标题卡`
+              : `[warn] 「${sel.topic}」素材无可用封面图，标题卡也生成失败`,
+          );
+        }
 
         // 正文配图（p045：每 500~800 字一张）：把没用作封面的素材图插到正文中部。
         // 素材没有多余图片就跳过——不硬凑，宁可少一张也不放无关图。
