@@ -35,17 +35,25 @@ async function strapiGet<T>(
   path: string,
   opts: { tags?: string[]; revalidate?: number } = {},
 ): Promise<T> {
-  const res = await fetch(`${STRAPI_API_URL}/api${path}`, {
-    headers: STRAPI_API_TOKEN ? { Authorization: `Bearer ${STRAPI_API_TOKEN}` } : {},
-    next: {
-      revalidate: opts.revalidate ?? REVALIDATE_SECONDS,
-      tags: opts.tags,
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`Strapi ${res.status} ${res.statusText} :: GET /api${path}`);
+  // 5xx 重试（构建期抗压）：next build 要预渲染近 400 个页面，每页都打 Strapi，
+  // 并发 worker 会把它压出 502/504——2026-07-28 连续两次构建就是这么挂的
+  // （Strapi 504 → Export encountered an error → 整个 build 退出）。
+  // 单次 5xx 不该让整轮构建报废，退避重试两次；4xx 是真错误，立即抛。
+  let lastErr: Error | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, attempt * 1500));
+    const res = await fetch(`${STRAPI_API_URL}/api${path}`, {
+      headers: STRAPI_API_TOKEN ? { Authorization: `Bearer ${STRAPI_API_TOKEN}` } : {},
+      next: {
+        revalidate: opts.revalidate ?? REVALIDATE_SECONDS,
+        tags: opts.tags,
+      },
+    });
+    if (res.ok) return (await res.json()) as T;
+    lastErr = new Error(`Strapi ${res.status} ${res.statusText} :: GET /api${path}`);
+    if (res.status < 500) break; // 404/403 等重试无意义
   }
-  return (await res.json()) as T;
+  throw lastErr;
 }
 
 /** 媒体 URL 绝对化：Strapi 本地存储返回相对路径，R2/CDN 返回绝对路径。 */

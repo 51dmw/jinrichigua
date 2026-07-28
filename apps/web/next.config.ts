@@ -15,6 +15,13 @@ const nextConfig: NextConfig = {
   skipTrailingSlashRedirect: true,
   // 不对外暴露技术栈（移除 X-Powered-By: Next.js）。
   poweredByHeader: false,
+  experimental: {
+    // 限制静态生成的并发 worker 数（默认吃满 4 核 → 5 个 worker）。
+    // 本机是 4 核单机，Strapi + Postgres + Next 全挤在一起；构建要预渲染近 400 个
+    // 页面且每页都打 Strapi，满并发会把它压出 504 导致整轮构建失败（2026-07-28 两次）。
+    // 降到 2 换取构建稳定——构建慢几分钟远比线上部署失败划算。
+    cpus: 2,
+  },
   // 旧短路径 → 信息页（301 永久跳转，消除 404 / 集中权重，§4 SEO）。
   async redirects() {
     const map: Record<string, string> = {
