@@ -48,6 +48,13 @@ const nextConfig: NextConfig = {
   images: {
     // 现代格式（SEO/LCP）：优先 AVIF，回退 WebP，再回退原图。
     formats: ['image/avif', 'image/webp'],
+    // 砍掉 2048/3840 两档（Next 默认到 3840）。全站声明的 sizes 最大是
+    // 「(max-width: 640px) 100vw, 640px」，即最宽 640 CSS px，DPR 3 也只需要 1920，
+    // 2048/3840 两档永远不会被浏览器选中，只是让每个 srcSet 白白多两条候选。
+    // 首页 20+ 张图，每条候选约 130 字符 → 省下约 5KB HTML（gzip 前）。
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    // 与 Next 默认一致，显式写出来防止以后误改（112px/88px 的小图靠这组出候选）。
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     remotePatterns: [
       {
         protocol: protocol.replace(':', '') as 'http' | 'https',

@@ -132,6 +132,7 @@ export default async function ArticlePage({ params }: { params: Params }) {
             fill
             sizes="(max-width: 640px) 100vw, 640px"
             priority
+            fetchPriority="high" // 详情页封面是 LCP 元素，priority 不带 fetchpriority（见 ArticleCard 注释）
             className="object-cover"
           />
         </div>

@@ -29,6 +29,10 @@ function Cover({
       fill
       sizes={sizes}
       priority={priority}
+      // Next 15 的 priority 只负责「不 lazy + 发 preload」，不会给 <img> 加 fetchpriority
+      // （见 next/dist/shared/lib/get-img-props.js：fetchPriority 是独立入参）。
+      // LCP 图要显式抬到 high，否则仍排在同批图片的默认优先级里。
+      fetchPriority={priority ? 'high' : undefined}
       className="object-cover"
     />
   );
