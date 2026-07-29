@@ -1234,14 +1234,15 @@ async function main() {
   // 标签治理（防孤岛）：已存在标签集合 + 推荐复用清单（按使用频次降序）注入 prompt，
   // 引导 LLM 优先复用；配合入库时「每篇最多新建 1 个标签」的硬约束（见下方）。
   const existingTagSet = new Set(allTags.map((t) => t.name));
-  // 推荐复用清单：只列「已经有文章挂着」的标签，并且尽量给全（原先只给前 60 个，
-  // 词表外的一律靠模型现编，是标签越长越多的第二个来源）。零文章标签不进清单——
-  // 它们本身就是要清理掉的对象，推荐复用等于把垃圾续命。
+  // 推荐复用清单：把整个标签库都给模型挑（原先只给前 60 个按使用频次排的，
+  // 词表外的一律靠它现编，是标签越长越多的一个来源）。
+  // 零文章标签也要进清单——tag-vocabulary.json 那批预置品类词
+  // （演员/导演/绯闻/带货/主播/转会/霸凌/饭圈/超话/职场/探班…）本来就是备着给出稿挑的，
+  // 挂上之后才会长出聚合页；把它们挡在清单外等于逼模型现编同义新词。
+  // 排序上仍把「已经有文章在用的」放前面，让模型优先往已成形的话题上聚。
   const tagLib = allTags
     .map((t) => ({ name: t.name, n: t.articles?.count ?? 0 }))
-    .filter((t) => t.n > 0)
     .sort((a, b) => b.n - a.n)
-    .slice(0, 150)
     .map((t) => t.name);
 
   // 5. 逐选题生成 + 入库（一篇一体裁，轮换 + 最近写法作为动态禁令）
@@ -1343,7 +1344,12 @@ async function main() {
       const MAX_NEW_TAGS = 1;
       const tagIds = [];
       let newCount = 0;
-      const wanted = (art.tags || []).map((t) => t?.name).filter(Boolean).slice(0, 4);
+      // 截断口径对齐提示词（要的是 3~5 个），原先写死取前 4 个，模型给满 5 个时第 5 个被静默丢掉。
+      // 而模型的习惯是泛词在前、具体词在后，被丢的恰好是唯一有价值的那个：
+      // 实跑产出过 [网络热议,热搜,大瓜,爆料,医药反腐]、[明星,吃瓜,爆料,娱乐八卦,校园霸凌]，
+      // 两次都是第 5 位的具体词被切。结果是「每篇允许新建 1 个标签」这条规则常常轮不到执行，
+      // 入库的全是泛词——存量 72 篇「只有泛词没有具体标签」就是这么来的。
+      const wanted = (art.tags || []).map((t) => t?.name).filter(Boolean).slice(0, 5);
       // 先复用已存在的
       const reuse = wanted.filter((n) => existingTagSet.has(n));
       const brandNew = wanted.filter((n) => !existingTagSet.has(n));

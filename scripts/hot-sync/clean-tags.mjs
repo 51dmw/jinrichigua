@@ -40,6 +40,14 @@ if (!TOKEN) throw new Error('.env 缺 STRAPI_API_TOKEN');
 const APPLY = process.argv.includes('--apply');
 const DROP_ONEOFF = process.argv.includes('--drop-oneoff');
 const BACKFILL_ALL = process.argv.includes('--backfill-all');
+// --restore-vocab：把 tag-vocabulary.json 里的词表灌回标签库，供出稿时挑选。
+// 这批词就是 2026-06-19 由后台 BulkTags 导入、治理时按「零文章」清掉的那 395 个。
+// 清掉是因为它们当时确实没被任何文章用过；重新灌回是因为里面有大量可复用的品类词
+// （演员/导演/绯闻/带货/主播/转会/霸凌/饭圈/超话/职场/裁员/探班…），
+// 让模型有得挑，好过它每篇现编新词。
+// 空标签本身无害：前台是 404，getAllTagSlugs 也把它们挡在 sitemap 外，
+// 只有真被文章挂上之后才会长出页面。
+const RESTORE_VOCAB = process.argv.includes('--restore-vocab');
 
 async function api(path, opts = {}) {
   const res = await fetch(`${URL_BASE}/api${path}`, {
@@ -159,6 +167,23 @@ async function main() {
     .map((t) => ({ name: t.name, slug: t.slug, doc: t.documentId, n: t.articles?.count ?? 0 }));
   const byName = new Map(tags.map((t) => [t.name, t]));
   console.log(`标签总数 ${tags.length}：零文章 ${tags.filter((t) => t.n === 0).length}，1 篇 ${tags.filter((t) => t.n === 1).length}，≥2 篇 ${tags.filter((t) => t.n >= 2).length}\n`);
+
+  // ---------- 0. 恢复词表 ----------
+  if (RESTORE_VOCAB) {
+    const vocab = JSON.parse(readFileSync(join(DIR, 'tag-vocabulary.json'), 'utf8'));
+    const missing = vocab.filter((v) => !byName.has(v.name));
+    console.log(`【0】词表恢复：清单 ${vocab.length} 个，库里已有 ${vocab.length - missing.length} 个，待补 ${missing.length} 个`);
+    if (APPLY) {
+      let ok = 0;
+      for (const v of missing) {
+        try { await api('/tags', { method: 'POST', body: JSON.stringify({ data: { name: v.name, slug: v.slug || undefined } }) }); ok += 1; } catch (e) { console.warn(`     [warn] 「${v.name}」建失败: ${e.message.slice(0, 50)}`); }
+      }
+      console.log(`     ✓ 已补 ${ok}/${missing.length}`);
+    }
+    // 恢复词表这一趟不做清理——否则刚建的空标签会被下面第 1 步立刻删掉
+    console.log(`\n[done] ${APPLY ? '词表已恢复' : '报告完毕，未写入'}（--restore-vocab 只做恢复，不执行后续清理步骤）`);
+    return;
+  }
 
   // ---------- 1. 删空标签 ----------
   const empty = tags.filter((t) => t.n === 0);
