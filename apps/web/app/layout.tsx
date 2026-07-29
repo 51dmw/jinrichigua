@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import './globals.css';
 import { getGlobal, getNavChannels } from '@/lib/strapi';
-import { buildSiteMetadata, organizationJsonLd, websiteJsonLd } from '@/lib/seo';
+import { buildSiteMetadata, siteGraphJsonLd } from '@/lib/seo';
 import { ChannelNav } from '@/components/ChannelNav';
 import { SiteFooter } from '@/components/SiteFooter';
 import { Analytics } from '@/components/Analytics';
@@ -41,9 +41,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         ) : null}
       </head>
       <body>
-        {/* 站点级实体（§4 SEO）：Organization + WebSite */}
-        <JsonLd data={organizationJsonLd(global)} />
-        <JsonLd data={websiteJsonLd(global)} />
+        {/* 站点级实体图（§4 SEO）：Organization + Logo + WebSite，单段 @graph 靠 @id 互引 */}
+        <JsonLd data={siteGraphJsonLd(global)} />
         {/* 品牌头：随页面滚走，让下面的分类行吸顶 */}
         <header className="bg-brand">
           <div className="mx-auto flex max-w-screen items-center gap-3 px-4 py-2.5 lg:max-w-5xl">
@@ -73,7 +72,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ChannelNav channels={channels} />
         <main className="mx-auto w-full max-w-screen px-2 py-3 lg:max-w-5xl">{children}</main>
         <SiteFooter global={global} />
-        <Analytics metricaId={global?.yandexMetricaId} />
+        <Analytics metricaId={global?.yandexMetricaId} gaId={process.env.NEXT_PUBLIC_GA_ID} />
       </body>
     </html>
   );

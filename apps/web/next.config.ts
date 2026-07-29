@@ -6,12 +6,22 @@ const { hostname, protocol } = new URL(strapiUrl);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // 构建输出目录可覆盖（安全部署用）：构建时写临时目录，成功后原子切换到 .next，
+  // 失败绝不污染线上运行的 .next。运行(next start)用默认 .next，见 scripts/deploy-web.sh。
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   // URL 规范化（SEO）：统一「无结尾斜杠」。
   trailingSlash: false,
   // 关掉 Next 自带的尾斜杠跳转，交给 middleware 一次性处理(小写+去尾斜杠+去重斜杠)，避免多跳。
   skipTrailingSlashRedirect: true,
   // 不对外暴露技术栈（移除 X-Powered-By: Next.js）。
   poweredByHeader: false,
+  experimental: {
+    // 限制静态生成的并发 worker 数（默认吃满 4 核 → 5 个 worker）。
+    // 本机是 4 核单机，Strapi + Postgres + Next 全挤在一起；构建要预渲染近 400 个
+    // 页面且每页都打 Strapi，满并发会把它压出 504 导致整轮构建失败（2026-07-28 两次）。
+    // 降到 2 换取构建稳定——构建慢几分钟远比线上部署失败划算。
+    cpus: 2,
+  },
   // 旧短路径 → 信息页（301 永久跳转，消除 404 / 集中权重，§4 SEO）。
   async redirects() {
     const map: Record<string, string> = {
@@ -45,13 +55,20 @@ const nextConfig: NextConfig = {
   images: {
     // 现代格式（SEO/LCP）：优先 AVIF，回退 WebP，再回退原图。
     formats: ['image/avif', 'image/webp'],
+    // 砍掉 2048/3840 两档（Next 默认到 3840）。全站声明的 sizes 最大是
+    // 「(max-width: 640px) 100vw, 640px」，即最宽 640 CSS px，DPR 3 也只需要 1920，
+    // 2048/3840 两档永远不会被浏览器选中，只是让每个 srcSet 白白多两条候选。
+    // 首页 20+ 张图，每条候选约 130 字符 → 省下约 5KB HTML（gzip 前）。
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    // 与 Next 默认一致，显式写出来防止以后误改（112px/88px 的小图靠这组出候选）。
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     remotePatterns: [
       {
         protocol: protocol.replace(':', '') as 'http' | 'https',
         hostname,
       },
-      // R2 / CDN 公网域名（M5 启用后按需补充）
-      // { protocol: 'https', hostname: 'media.example.com' },
+      // R2 媒体域（M5：Strapi 上传已切 R2，见 apps/cms/config/plugins.ts）
+      { protocol: 'https', hostname: 'img.sibian.xyz' },
     ],
   },
 };

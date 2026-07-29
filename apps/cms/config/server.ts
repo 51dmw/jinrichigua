@@ -1,3 +1,5 @@
+import friendLinkCron from './cron';
+
 export default ({ env }) => ({
   host: env('HOST', '0.0.0.0'),
   port: env.int('PORT', 1337),
@@ -48,6 +50,8 @@ export default ({ env }) => ({
         }
         if (count > 0) strapi.log.info(`[cron] 定时发布 ${count} 篇`);
       },
+      // 友链统计第2期：每日 Shanghai 01:30 聚合昨天 + 回补 + 清理 30 天前（详见 config/cron.ts）。
+      ...friendLinkCron,
     },
   },
 });

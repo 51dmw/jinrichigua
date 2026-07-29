@@ -5,10 +5,25 @@ const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000')
   .map((s) => s.trim())
   .filter(Boolean);
 
+// R2 媒体域（后台媒体库预览需放行 img-src/media-src）
+const mediaHost = (process.env.R2_PUBLIC_URL || '').replace(/^https?:\/\//, '');
+
 export default [
   'strapi::logger',
   'strapi::errors',
-  'strapi::security',
+  {
+    name: 'strapi::security',
+    config: {
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          'img-src': ["'self'", 'data:', 'blob:', 'market-assets.strapi.io', ...(mediaHost ? [mediaHost] : [])],
+          'media-src': ["'self'", 'data:', 'blob:', ...(mediaHost ? [mediaHost] : [])],
+          upgradeInsecureRequests: null,
+        },
+      },
+    },
+  },
   {
     name: 'strapi::cors',
     config: {

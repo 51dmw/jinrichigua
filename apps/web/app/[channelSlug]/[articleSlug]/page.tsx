@@ -12,6 +12,7 @@ import {
   imageAlt,
 } from '@/lib/strapi';
 import { newsArticleJsonLd, resolveMetadata } from '@/lib/seo';
+import { renderArticleMarkdown } from '@/lib/markdown';
 import { JsonLd } from '@/components/JsonLd';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { ArticleCard } from '@/components/ArticleCard';
@@ -131,6 +132,7 @@ export default async function ArticlePage({ params }: { params: Params }) {
             fill
             sizes="(max-width: 640px) 100vw, 640px"
             priority
+            fetchPriority="high" // 详情页封面是 LCP 元素，priority 不带 fetchpriority（见 ArticleCard 注释）
             className="object-cover"
           />
         </div>
@@ -143,14 +145,12 @@ export default async function ArticlePage({ params }: { params: Params }) {
       {/* 正文：服务端完整输出（§4 MUST：不得依赖客户端 JS） */}
       <div className="article-body mt-4">
         {(() => {
-          const paras = (article.content ?? article.summary ?? '')
-            .split('\n')
-            .filter((line) => line.trim().length > 0)
-            .map((line) => line.replace(/^#+\s*/, ''));
-          // 正文内原生位：约第 3 段后插入（正文 ≥5 段才插，避免短文打断阅读）
-          const adAfter = paras.length >= 5 ? 2 : -1;
-          return paras.map((line, i) => [
-            <p key={`p-${i}`}>{line}</p>,
+          // 受限 markdown 渲染：小标题→h2/h3、[]()→内链、![]()→配图、**→strong
+          const blocks = renderArticleMarkdown(article.content ?? article.summary ?? '');
+          // 正文内原生位：约第 3 块后插入（正文 ≥5 块才插，避免短文打断阅读）
+          const adAfter = blocks.length >= 5 ? 2 : -1;
+          return blocks.map((node, i) => [
+            node,
             i === adAfter ? <AdSlotBanner key="article-inline" slotKey="article-inline" /> : null,
           ]);
         })()}

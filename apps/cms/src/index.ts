@@ -134,6 +134,9 @@ const PUBLIC_READ: Record<string, string[]> = {
   'api::author.author': ['find', 'findOne'],
   // 评论：公众可读（仅已审核，前台过滤）+ 可提交（lifecycle 强制待审 + 敏感词）
   'api::comment.comment': ['find', 'create'],
+  // 友情链接：公众只读（前台渲染友链列表 + /go 按 code 查真实 url）。
+  // 埋点写入 /friend-link/track 不走此权限（路由 auth:false + 共享密钥）。
+  'api::friend-link.friend-link': ['find', 'findOne'],
 };
 
 async function grantPublicReadPermissions(strapi: StrapiApp) {
@@ -794,15 +797,23 @@ const FIELD_LABELS_BASE: Record<string, string> = {
   index: '允许索引', follow: '允许跟踪',
   // 首页区块组件
   variant: '版式', limit: '取数量',
+  // 友情链接
+  url: '链接地址', domain: '站点域名', code: '渠道值', track: '统计去路',
+  dofollow: '保留反链 (dofollow)', logo: '站点图标',
+  // 友链日统计（第2期）
+  date: '统计日期', linkId: '友链ID',
+  refInPv: '来路PV', refInUv: '来路UV', refOutPv: '去路PV', refOutUv: '去路UV',
 };
 // 同名字段在特定组件下的语义覆盖（避免歧义）
 const FIELD_LABELS_OVERRIDE: Record<string, Record<string, string>> = {
   'components::layout.home-block': { title: '区块标题', channel: '频道' },
+  // 日统计里 name 指「站点名称」（友链快照），区别于通用「名称」。
+  'api::friend-link-daily-stat.friend-link-daily-stat': { name: '站点名称' },
 };
 
 async function ensureChineseFieldLabels(strapi: StrapiApp) {
   const store = strapi.store({ type: 'type', name: 'setup' });
-  if (await store.get({ key: 'cnFieldLabelsV2HasRun' })) return;
+  if (await store.get({ key: 'cnFieldLabelsV4HasRun' })) return;
 
   const PREFIXES = [
     'plugin_content_manager_configuration_content_types::api::', // 仅本项目内容类型
@@ -844,7 +855,7 @@ async function ensureChineseFieldLabels(strapi: StrapiApp) {
       }
     }
   }
-  await store.set({ key: 'cnFieldLabelsV2HasRun', value: true });
+  await store.set({ key: 'cnFieldLabelsV4HasRun', value: true });
   strapi.log.info(`[bootstrap] 已应用后台字段中文标签（更新 ${touched} 个配置）`);
 }
 

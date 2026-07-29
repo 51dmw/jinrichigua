@@ -28,23 +28,32 @@ const TAGS = {
   articles: 'articles',
   home: 'home',
   adslots: 'adslots',
+  friendLinks: 'friendlinks',
 } as const;
 
 async function strapiGet<T>(
   path: string,
   opts: { tags?: string[]; revalidate?: number } = {},
 ): Promise<T> {
-  const res = await fetch(`${STRAPI_API_URL}/api${path}`, {
-    headers: STRAPI_API_TOKEN ? { Authorization: `Bearer ${STRAPI_API_TOKEN}` } : {},
-    next: {
-      revalidate: opts.revalidate ?? REVALIDATE_SECONDS,
-      tags: opts.tags,
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`Strapi ${res.status} ${res.statusText} :: GET /api${path}`);
+  // 5xx 重试（构建期抗压）：next build 要预渲染近 400 个页面，每页都打 Strapi，
+  // 并发 worker 会把它压出 502/504——2026-07-28 连续两次构建就是这么挂的
+  // （Strapi 504 → Export encountered an error → 整个 build 退出）。
+  // 单次 5xx 不该让整轮构建报废，退避重试两次；4xx 是真错误，立即抛。
+  let lastErr: Error | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, attempt * 1500));
+    const res = await fetch(`${STRAPI_API_URL}/api${path}`, {
+      headers: STRAPI_API_TOKEN ? { Authorization: `Bearer ${STRAPI_API_TOKEN}` } : {},
+      next: {
+        revalidate: opts.revalidate ?? REVALIDATE_SECONDS,
+        tags: opts.tags,
+      },
+    });
+    if (res.ok) return (await res.json()) as T;
+    lastErr = new Error(`Strapi ${res.status} ${res.statusText} :: GET /api${path}`);
+    if (res.status < 500) break; // 404/403 等重试无意义
   }
-  return (await res.json()) as T;
+  throw lastErr;
 }
 
 /** 媒体 URL 绝对化：Strapi 本地存储返回相对路径，R2/CDN 返回绝对路径。 */
@@ -734,4 +743,56 @@ export async function getHomeBlocks(): Promise<HomeBlock[]> {
     }),
   );
   return blocks.filter((b): b is HomeBlock => b !== null).sort((a, b) => a.order - b.order);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Friend Links（友情链接 + 来路/去路统计，第1期）
+// ─────────────────────────────────────────────────────────────
+
+/** 友链（前台只读视图）。Strapi 5 响应已扁平化，字段直接平铺。 */
+export interface FriendLinkPublic {
+  documentId: string;
+  name: string;
+  url: string;
+  domain?: string | null;
+  code: string;
+  description?: string | null;
+  logo?: MediaImage | null;
+  order?: number | null;
+  enabled?: boolean;
+  /** true → 经 /go 统计去路；false → 直链不统计 */
+  track: boolean;
+  /** true 且未统计时输出 dofollow（保反链） */
+  dofollow: boolean;
+}
+
+/** 友链列表（仅已启用，按 order 升序）。供 FriendLinks 组件渲染。 */
+export async function getFriendLinks(): Promise<FriendLinkPublic[]> {
+  try {
+    const json = await strapiGet<StrapiListResponse<FriendLinkPublic>>(
+      `/friend-links?filters[enabled][$eq]=true&sort=order:asc&populate=logo&pagination[pageSize]=100`,
+      { tags: [TAGS.friendLinks] },
+    );
+    return json.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 按 code 查「已启用」友链真实 url（供 /go 去路跳转）。
+ * 实时查（不缓存）：友链改了 url / 停用应立刻生效，且 /go 是低频跳转。
+ * 查不到 / url 非法 → 返回 null（调用方回首页）。
+ */
+export async function getFriendLinkUrlByCode(code: string): Promise<string | null> {
+  try {
+    const json = await strapiGet<StrapiListResponse<{ url: string }>>(
+      `/friend-links?filters[code][$eq]=${encodeURIComponent(code)}&filters[enabled][$eq]=true&fields[0]=url&pagination[pageSize]=1`,
+      { revalidate: 0 },
+    );
+    const url = json.data?.[0]?.url ?? '';
+    return url.startsWith('http://') || url.startsWith('https://') ? url : null;
+  } catch {
+    return null;
+  }
 }

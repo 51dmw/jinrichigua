@@ -10,13 +10,23 @@ node_modules/
 # build output
 dist/
 .next/
+.next-build/
+.next-prev/
 .open-next/
 .turbo/
+# TS 增量编译缓存：每次 tsc/next build 都会重写（152KB），
+# 跟踪它只会让每次构建后 git status 变脏、diff 里塞一行超长噪音。
+*.tsbuildinfo
 
 # cloudflare / wrangler
 .dev.vars
 .wrangler/
 cloudflare-env.d.ts
+
+# claude code：本机设置 + 写入时的临时文件（launch.json 是项目配置，保留跟踪）
+# settings.local.json 目前靠 ~/.config/git/ignore 挡着，写进仓库才对换机器/协作者生效
+.claude/settings.local.json
+.claude/*.tmp.*
 
 # local tmp / scratch（部署脚手架阶段产生）
 .tmp/
@@ -27,6 +37,8 @@ cloudflare-env.d.ts
 # strapi
 apps/cms/.cache/
 apps/cms/build/
+# Strapi 自己写的版本检查时间戳，每次启动都变，与代码无关
+apps/cms/.strapi-updater.json
 apps/cms/.strapi/
 apps/cms/.tmp/
 apps/cms/public/uploads/*
@@ -40,3 +52,9 @@ data/backups/
 .DS_Store
 *.log
 coverage/
+.gstack/
+scripts/hot-sync/state.json
+scripts/hot-sync/.run.lock
+scripts/hot-sync/out.json
+scripts/hot-sync/content_final.txt
+scripts/hot-sync/.backfill-cache*.json

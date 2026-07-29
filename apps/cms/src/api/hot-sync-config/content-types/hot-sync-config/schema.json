@@ -1,0 +1,28 @@
+{
+  "kind": "singleType",
+  "collectionName": "hot_sync_configs",
+  "info": {
+    "singularName": "hot-sync-config",
+    "pluralName": "hot-sync-configs",
+    "displayName": "热榜二创配置",
+    "description": "热榜同步二创脚本（scripts/hot-sync）的可配置 prompt；留空则脚本用内置默认"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "pickPrompt": {
+      "type": "text",
+      "description": "选题 prompt 模板。占位符：{{topics}} 热榜列表、{{limit}} 选题上限、{{channels}} 频道说明"
+    },
+    "writePrompt": {
+      "type": "text",
+      "description": "成文 prompt 模板。占位符：{{topic}} 选题、{{angle}} 切入角度、{{refs}} 热榜素材"
+    },
+    "note": {
+      "type": "text",
+      "description": "备注（不参与生成，记录调优历史等）"
+    }
+  }
+}

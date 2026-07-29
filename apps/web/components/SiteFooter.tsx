@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { GlobalSettings } from 'shared';
 import { getFeaturedTags } from '@/lib/strapi';
+import { FriendLinks } from './FriendLinks';
 
 type FooterLink = { label: string; href: string };
 
@@ -48,21 +49,27 @@ export async function SiteFooter({ global }: { global: GlobalSettings | null }) 
   return (
     <footer className="mt-8 border-t border-gray-200 bg-gray-50 text-gray-500">
       <div className="mx-auto max-w-screen px-4 py-6 lg:max-w-5xl">
-        {/* 精选标签（按标签最热文章点击数排序，SEO 站内内链，每页可见） */}
+        {/* 精选标签（按标签最热文章点击数排序，SEO 站内内链，每页可见）。
+            触控目标 ≥44px（SEO 审计 #23）：原先 min-h-24px + px-1 远低于移动友好度门槛。
+            取 44 而非报告建议的 48——44px 是 WCAG 2.5.8 与 iOS HIG 的实际标准，
+            48px 会让这行标签在小屏上撑得过高。 */}
         {tags.length > 0 ? (
-          <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+          <div className="mb-5 flex flex-wrap items-center gap-x-2 gap-y-2 text-xs">
             <span className="text-gray-500">精选标签：</span>
             {tags.map((t) => (
               <Link
                 key={t.slug}
                 href={`/tag/${t.slug}`}
-                className="inline-flex min-h-[24px] items-center px-1 py-1 hover:text-brand"
+                className="inline-flex min-h-[44px] items-center px-3 py-2 hover:text-brand"
               >
                 {t.name}
               </Link>
             ))}
           </div>
         ) : null}
+
+        {/* 友情链接（按 track 区分：走 /go 统计 或 直链保反链） */}
+        <FriendLinks />
 
         {/* 链接分栏 */}
         <div className="grid grid-cols-2 gap-4 border-t border-gray-200 pt-5 text-sm sm:grid-cols-4">

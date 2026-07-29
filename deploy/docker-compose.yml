@@ -57,6 +57,8 @@ services:
       # 发布联动
       WEB_REVALIDATE_URL: ${WEB_REVALIDATE_URL}
       WEB_REVALIDATE_TOKEN: ${WEB_REVALIDATE_TOKEN}
+      # 友链埋点共享密钥（友链统计第1期）。MUST 与前台 apps/web 的 FRIEND_TRACK_SECRET 一致。
+      FRIEND_TRACK_SECRET: ${FRIEND_TRACK_SECRET:?set in deploy/.env}
       # R2 媒体（可选）
       R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
       R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}

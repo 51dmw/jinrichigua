@@ -66,6 +66,7 @@ export async function ChannelView({ channelSlug, page }: { channelSlug: string; 
               path: `/${a.channel?.slug ?? channelSlug}/${a.slug}`,
             })),
             channel.name,
+            base,
           )}
         />
         <h1 className="mb-2 border-l-4 border-brand pl-2 text-lg font-bold">{channel.name}</h1>

@@ -68,6 +68,7 @@ export async function AuthorView({ slug, page }: { slug: string; page: number })
           data={itemListJsonLd(
             items.map((a) => ({ name: a.title, path: `/${a.channel?.slug ?? 'news'}/${a.slug}` })),
             `${author.name} 的文章`,
+            base,
           )}
         />
 

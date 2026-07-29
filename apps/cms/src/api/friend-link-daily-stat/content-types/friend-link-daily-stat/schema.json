@@ -1,0 +1,47 @@
+{
+  "kind": "collectionType",
+  "collectionName": "friend_link_daily_stats",
+  "info": {
+    "singularName": "friend-link-daily-stat",
+    "pluralName": "friend-link-daily-stats",
+    "displayName": "友链日统计",
+    "description": "友链来路/去路日聚合（第2期，按 Asia/Shanghai 自然日）"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "date": {
+      "type": "date"
+    },
+    "linkId": {
+      "type": "integer"
+    },
+    "name": {
+      "type": "string"
+    },
+    "domain": {
+      "type": "string"
+    },
+    "code": {
+      "type": "string"
+    },
+    "refInPv": {
+      "type": "integer",
+      "default": 0
+    },
+    "refInUv": {
+      "type": "integer",
+      "default": 0
+    },
+    "refOutPv": {
+      "type": "integer",
+      "default": 0
+    },
+    "refOutUv": {
+      "type": "integer",
+      "default": 0
+    }
+  }
+}
