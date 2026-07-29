@@ -17,7 +17,7 @@
  * 用法：node index.mjs [--limit 5] [--sources weibo,baidu,douyin,toutiao,zhihu,ifengent,ifengmov] [--dry-run] [--backend claude|minimax]
  *      node index.mjs --upgrade-prompt   # 把后台「热榜二创配置」刷成内置新版 prompt（旧值备份进 note）
  */
-import { readFileSync, writeFileSync, existsSync, rmSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, rmSync, unlinkSync, mkdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -213,10 +213,21 @@ function fingerprint(title) {
 }
 
 // ---------- LLM 后端 ----------
+// 生成子进程刻意去权：空目录当 cwd + 关掉所有工具。
+// 这一步不是洁癖——2026-07-29 实跑中撞见过：成文那步模型先吐出非法 JSON，
+// 「修复」重试的提示词把它带偏，它就以仓库目录为 cwd 跑去读了 index.mjs，
+// 回了一段「确认了——不是 bug，是设计如此……fetchIfengList（index.mjs:143-174）」，
+// 把代码分析当成文章正文输出。那次靠 JSON 解析失败挡住了（文章没入库），
+// 但它当时是带着完整工具权限的，本可以做出文件动作。
+// 成文只需要文本进文本出，给它仓库和工具是纯粹多余的攻击面。
+const SAFE_CWD = join(tmpdir(), 'hot-sync-gen');
+const CLAUDE_NO_TOOLS = ['--disallowedTools', 'Bash,Read,Write,Edit,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit'];
+
 function callClaude(prompt) {
   return new Promise((resolve, reject) => {
-    const child = spawn('claude', ['-p', '--model', CFG.claudeModel], {
-      cwd: DIR, stdio: ['pipe', 'pipe', 'pipe'],
+    try { mkdirSync(SAFE_CWD, { recursive: true }); } catch { /* 已存在即可 */ }
+    const child = spawn('claude', ['-p', '--model', CFG.claudeModel, ...CLAUDE_NO_TOOLS], {
+      cwd: SAFE_CWD, stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, ANTHROPIC_API_KEY: '' }, // 强制走订阅登录态而非 API key
     });
     let out = '', err = '';

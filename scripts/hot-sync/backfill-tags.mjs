@@ -28,7 +28,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const DIR = dirname(fileURLToPath(import.meta.url));
-const CACHE = join(DIR, '.backfill-cache.json');
 
 function loadEnv() {
   const file = join(DIR, '.env');
@@ -47,10 +46,34 @@ if (!TOKEN) throw new Error('.env 缺 STRAPI_API_TOKEN');
 const argv = process.argv.slice(2);
 const APPLY = argv.includes('--apply');
 const LIMIT = Number((argv[argv.indexOf('--limit') + 1] || 0)) || 0;
+// --deep：专治「一个具体标签都没有」的残余篇目。
+// 它们首轮之所以漏网，是因为标题里的实体（汪苏泷、黄日华、王菊…）全站只出现 1 次，
+// 被「覆盖 >= 2 篇」的防孤岛门槛挡掉了——为它们建标签只会再造孤岛。
+// 所以这一趟改成：读摘要/正文而不只是标题，且**只准从现有词库里挑**，一个新标签都不建。
+const DEEP = argv.includes('--deep');
+// 两种模式提示词不同（标题 vs 标题+摘要、可建新标签 vs 只准复用词库），缓存必须分开存，
+// 否则 --deep 会直接复用标题模式的旧结果，等于没跑。
+const CACHE = join(DIR, DEEP ? '.backfill-cache-deep.json' : '.backfill-cache.json');
 
 const BATCH = 30;            // 每次喂给模型的标题数
 const MIN_ARTICLES = 2;      // 新建标签的最低覆盖篇数——低于它宁可不建
 const MAX_TAGS_PER_ART = 5;  // 与管线一致：每篇最多 5 个标签
+
+// --deep 的人工否决清单（标题关键词 → 该篇不许挂的标签）。
+// deep 模式逼模型「只能从现有词库里挑」，但词库对这批文章本就没有贴切项，
+// 它并没有照「宁可给空数组」执行，而是硬套——19 条产出里 6 条错配。
+// 错标比不标更糟：挂错的文章会污染聚合页（有人点进 /tag/谢霆锋 看到讲大鹏的文章）。
+// 所以 deep 模式的产出必须人工过一遍，否决项记在这里而不是偷偷改缓存，保证可复现。
+const DEEP_REJECT = [
+  { t: '泰国旅游局', tag: 'GMM' },        // GMM 是粉丝冲突事件，与旅游局保安无关，只是都沾「泰国」
+  { t: '全家体制内', tag: '高铁占座' },    // 高铁占座指李权哲事件，两回事
+  { t: '大鹏赵英俊', tag: '谢霆锋' },      // 完全不相干
+  { t: '香港乐坛', tag: '职场纠纷' },      // 讲乐坛对比，不是职场
+  { t: '刘宇宁', tag: '追星' },           // 「追星」指粉丝追星，这几条是艺人本人的事
+  { t: 'Jennie', tag: '追星' },
+  { t: '王菊', tag: '追星' },
+  { t: '阿梓不可爱', tag: '追星' },
+];
 
 // 泛词：这些已经挂得到处都是，不需要模型再产出
 const GENERIC = new Set(['热搜', '网络热议', '吃瓜', '围观', '出圈', '反转', '大瓜', '黑料', '实锤',
@@ -110,6 +133,26 @@ function parseJson(text) {
   return JSON.parse(text.slice(s, e + 1));
 }
 
+function deepPrompt(items, tagLib) {
+  return `你在给一个中文吃瓜资讯站做标签标注。下面每篇给出标题和内容摘要。
+
+${items.map((a, i) => `${i}. 标题：${a.title}\n   摘要：${a.brief}`).join('\n\n')}
+
+为每篇挑 1~3 个标签，规则（**最重要的一条**）：
+- **只能从下面这份现有标签清单里选，一个字都不能改，不准发明新词**。
+  这些文章的主角在全站只出现过一次，为它单独建标签只会制造没人看的孤岛页，
+  所以宁可挂一个稍宽的现成分类，也不要造新词。
+${tagLib.join('、')}
+- 不要选这些泛词（文章已经挂满了）：${[...GENERIC].join('、')}
+- 按内容实质选，不要只看标题字面。例：讲医疗纠纷的选「健康」，
+  讲法院/警方处理的选「社会案件」，讲海外出行风险的选「海外安全」，
+  讲综艺节目的选「综艺」，讲电影票房的选「电影票房」
+- 清单里实在没有贴切的，宁可给空数组，也不要硬套一个不相干的
+
+只输出 JSON 数组，不要任何其他文字：
+[{"i":编号,"tags":["标签1","标签2"]}]`;
+}
+
 function prompt(items, tagLib) {
   return `你在给一个中文吃瓜资讯站做标签标注。下面每行是一篇文章的编号和标题。
 
@@ -136,8 +179,18 @@ async function main() {
   const byName = new Map(tags.map((t) => [t.name, t]));
   const tagLib = tags.filter((t) => !GENERIC.has(t.name)).sort((a, b) => b.n - a.n).map((t) => t.name);
 
-  let arts = (await allPages('/articles?status=published&fields[0]=title&populate[tags][fields][0]=name'))
-    .map((a) => ({ doc: a.documentId, title: a.title, tags: (a.tags || []).map((x) => x.name), pairs: (a.tags || []).map((x) => ({ name: x.name, id: x.documentId })) }));
+  const fields = DEEP ? 'fields[0]=title&fields[1]=summary' : 'fields[0]=title';
+  let arts = (await allPages(`/articles?status=published&${fields}&populate[tags][fields][0]=name`))
+    .map((a) => ({
+      doc: a.documentId, title: a.title, brief: String(a.summary || '').slice(0, 160),
+      tags: (a.tags || []).map((x) => x.name), pairs: (a.tags || []).map((x) => ({ name: x.name, id: x.documentId })),
+    }));
+  if (DEEP) {
+    // 只挑「一个具体标签都没有」的
+    const before = arts.length;
+    arts = arts.filter((a) => a.tags.every((t) => GENERIC.has(t)));
+    console.log(`[deep] 只处理无具体标签的 ${arts.length} 篇（全站 ${before} 篇）`);
+  }
   if (LIMIT) arts = arts.slice(0, LIMIT);
   console.log(`文章 ${arts.length} 篇，现有标签 ${tags.length} 个（喂给模型的复用词表 ${tagLib.length} 个）`);
 
@@ -152,7 +205,7 @@ async function main() {
     const batch = todo.slice(i, i + BATCH);
     process.stdout.write(`  抽取 ${i + 1}~${i + batch.length}/${todo.length} … `);
     try {
-      const out = parseJson(await callClaude(prompt(batch, tagLib)));
+      const out = parseJson(await callClaude(DEEP ? deepPrompt(batch, tagLib) : prompt(batch, tagLib)));
       for (const r of out) {
         const a = batch[r.i];
         if (!a) continue;
@@ -175,7 +228,8 @@ async function main() {
   const newTags = [];
   for (const [name, n] of cover) {
     if (byName.has(name)) { usable.add(name); continue; }      // 已存在，直接复用
-    if (n >= MIN_ARTICLES) { usable.add(name); newTags.push({ name, n }); }  // 够覆盖，允许新建
+    // --deep 一趟只准复用词库，不建新标签（这些文章的实体全站只出现 1 次，建了就是孤岛）
+    if (!DEEP && n >= MIN_ARTICLES) { usable.add(name); newTags.push({ name, n }); }
   }
   const dropped = [...cover.entries()].filter(([n]) => !usable.has(n));
 
@@ -193,7 +247,9 @@ async function main() {
   // 而实际只挂上 1 篇，反倒制造出新孤岛（首次跑 44 个新标签里有 17 个栽在这）。
   const plan = [];
   for (const a of arts) {
-    const want = [...new Set(cache[a.doc] || [])].filter((t) => usable.has(t) && !a.tags.includes(t));
+    const want = [...new Set(cache[a.doc] || [])]
+      .filter((t) => usable.has(t) && !a.tags.includes(t))
+      .filter((t) => !DEEP_REJECT.some((r) => r.tag === t && a.title.includes(r.t)));
     if (!want.length) continue;
     const room = MAX_TAGS_PER_ART - a.tags.length;
     let evict = [];
