@@ -39,6 +39,7 @@ if (!TOKEN) throw new Error('.env 缺 STRAPI_API_TOKEN');
 
 const APPLY = process.argv.includes('--apply');
 const DROP_ONEOFF = process.argv.includes('--drop-oneoff');
+const BACKFILL_ALL = process.argv.includes('--backfill-all');
 
 async function api(path, opts = {}) {
   const res = await fetch(`${URL_BASE}/api${path}`, {
@@ -48,6 +49,20 @@ async function api(path, opts = {}) {
   if (!res.ok) throw new Error(`${res.status} ${path} ${(await res.text()).slice(0, 200)}`);
   return res.status === 204 ? null : res.json();
 }
+
+// ---------- 全量回填（--backfill-all）----------
+// ENTITY/THEME 是手写清单，覆盖不到的标签还有很多。这里加一条通用规则：
+// 中文标签绝大多数是「字面词」，标题里出现该词基本就是该标签的文章，
+// 所以直接拿标签名当关键词扫一遍，成本极低、覆盖面最大。
+//
+// 两条护栏：
+// ① 只回填「覆盖不足」的标签（文章数 < BACKFILL_CEIL）。已经几十上百篇的大标签
+//    不缺文章，再灌只会变成什么都装的万能标签，聚合页反而失去区分度。
+// ② 过泛的词不参与：它们在标题里的出现多半不是「这篇属于该分类」的意思
+//    （「上热搜」「大瓜」几乎每篇都能沾边），扫出来的是噪音不是覆盖。
+const BACKFILL_CEIL = 20;
+const TOO_GENERIC = new Set(['热搜', '网络热议', '吃瓜', '围观', '出圈', '反转', '大瓜', '黑料',
+  '实锤', '爆料', '视频', '微博热搜', '热榜', '娱乐八卦', '明星', '冲突', '塌房', '顶流', '赛后']);
 
 // ---------- 近义合并表（from → to）----------
 // 只收「同义或包含关系、合并后聚合页语义不变」的；拿不准的一律不动，留给人工。
@@ -230,6 +245,35 @@ async function main() {
       } catch (e) { console.warn(`     [warn] 《${a.title}》回填失败: ${e.message.slice(0, 60)}`); }
     }
     console.log(`     ✓ 「${th.tag}」回填 ${ok} 篇`);
+  }
+
+  // ---------- 3c. 全量回填 ----------
+  if (BACKFILL_ALL) {
+    console.log(`\n【3c】全量回填（标签名当关键词，只补文章数 < ${BACKFILL_CEIL} 的标签）`);
+    const thin = tags.filter((t) => t.n > 0 && t.n < BACKFILL_CEIL && !TOO_GENERIC.has(t.name)
+      && !ENTITY.some((e) => e.tag === t.name) && !THEME.some((e) => e.tag === t.name));
+    console.log(`     待扫标签 ${thin.length} 个（已排除过泛词 ${TOO_GENERIC.size} 个、手写清单已覆盖的）`);
+    let total = 0;
+    for (const t of thin) {
+      // 标签名太短的不扫：1~2 字的词在标题里撞车概率高（「瓜」「车」这类）
+      if (t.name.length < 2) continue;
+      let arts;
+      try {
+        arts = await allPages(`/articles?status=published&filters[title][$contains]=${encodeURIComponent(t.name)}&populate[tags][fields][0]=name`);
+      } catch (e) { console.warn(`     [warn] 扫「${t.name}」失败: ${e.message.slice(0, 50)}`); continue; }
+      const missing = arts.filter((a) => !(a.tags || []).some((x) => x.name === t.name) && (a.tags || []).length < 5);
+      if (!missing.length) continue;
+      console.log(`     「${t.name}」(${t.n}篇) → 命中 ${arts.length} 篇，回填 ${missing.length} 篇`);
+      if (!APPLY) { missing.slice(0, 3).forEach((a) => console.log(`         · ${a.title}`)); total += missing.length; continue; }
+      for (const a of missing) {
+        const cur = (a.tags || []).map((x) => x.documentId);
+        try {
+          await api(`/articles/${a.documentId}?status=published`, { method: 'PUT', body: JSON.stringify({ data: { tags: [...cur, t.doc] } }) });
+          total += 1;
+        } catch (e) { console.warn(`     [warn] 《${a.title}》失败: ${e.message.slice(0, 50)}`); }
+      }
+    }
+    console.log(`     ${APPLY ? '✓ 共回填' : '待回填'} ${total} 篇`);
   }
 
   // ---------- 4. 一次性标签 ----------
