@@ -6,7 +6,7 @@
  *      → 敏感词过滤 → Strapi REST 写入草稿(reviewState=pending) → 后台人工审核发布。
  *
  * 采集源：五个热榜走 60s API（weibo/baidu/douyin/toutiao/zhihu），
- *      凤凰娱乐·明星（ifengent）自带取数——只取标题作选题线索，不抓正文。
+ *      凤凰网自带取数（明星 ifengent / 影视 ifengmov）——只取标题作选题线索，不抓正文。
  *
  * 写入只经 Strapi REST API（符合 DEVELOPMENT_CONSTRAINTS §数据流约束），不直连数据库。
  * 生成后端可插拔：claude（默认，走本机 Claude Code Max 订阅）/ minimax（OpenAI 兼容，需余额）。
@@ -14,7 +14,7 @@
  * 反雷同：一篇一体裁（WRITE_STYLES 13 种，按频道亲和 + 最近用过的不重复轮换）+ 全局禁令
  *      + 把最近 20 篇的标题/开头作为「已用写法」注入禁令，防止模型长出新套路。
  *
- * 用法：node index.mjs [--limit 5] [--sources weibo,baidu,douyin,toutiao,zhihu,ifengent] [--dry-run] [--backend claude|minimax]
+ * 用法：node index.mjs [--limit 5] [--sources weibo,baidu,douyin,toutiao,zhihu,ifengent,ifengmov] [--dry-run] [--backend claude|minimax]
  *      node index.mjs --upgrade-prompt   # 把后台「热榜二创配置」刷成内置新版 prompt（旧值备份进 note）
  */
 import { readFileSync, writeFileSync, existsSync, rmSync, unlinkSync } from 'node:fs';
@@ -67,7 +67,7 @@ const FILL_ONLY = argv.includes('--fill-only');
 // 自动发布：默认开（.env AUTO_PUBLISH=0 或 --draft 关闭）；命中敏感词的文章仍留草稿人工审核
 const AUTO_PUBLISH = !argv.includes('--draft') && (process.env.AUTO_PUBLISH ?? '1') !== '0';
 const BACKEND = arg('backend', CFG.backend);
-const SOURCE_KEYS = arg('sources', 'weibo,baidu,douyin,toutiao,zhihu,ifengent').split(',').map((s) => s.trim());
+const SOURCE_KEYS = arg('sources', 'weibo,baidu,douyin,toutiao,zhihu,ifengent,ifengmov').split(',').map((s) => s.trim());
 
 // ---------- 热榜源适配（60s API，字段各端点不同） ----------
 const SOURCES = {
@@ -76,10 +76,16 @@ const SOURCES = {
   douyin:  { path: 'douyin',    name: '抖音热点', map: (i) => ({ title: i.title, heat: i.hot_value || 0, link: i.link || '', desc: '', cover: i.cover || '' }) },
   toutiao: { path: 'toutiao',   name: '头条热榜', map: (i) => ({ title: i.title, heat: i.hot_value || 0, link: i.link || '', desc: '', cover: i.cover || '' }) },
   zhihu:   { path: 'zhihu',     name: '知乎热榜', map: (i) => ({ title: i.title, heat: 0, link: i.link || '', desc: (i.detail || '').slice(0, 120), cover: i.cover || '' }) },
-  // 凤凰娱乐不在 60s API 里，自带取数（见 fetchIfengEnt）。
+  // 凤凰网不在 60s API 里，自带取数（见 fetchIfengList）。
   // 它和上面五个的性质不同：是新闻流不是热榜，没有热度值，只能按发布时间倒序取。
   // 好处是条目本身经过编辑筛选，比微博热搜的一句话词条更像「一件事」。
-  ifengent: { name: '凤凰娱乐', fetch: fetchIfengEnt },
+  ifengent: { name: '凤凰娱乐', fetch: () => fetchIfengList('https://ent.ifeng.com/star/') },
+  // 影视板块：撤档/票房/枪版泄露/回应传闻这类，和站内 star 频道的选题高度重合。
+  // 2026-07-29 按「吃瓜向 vs 通稿」口径抽样比过四个凤凰频道（各 20 条）：
+  //   star 35%/0%、movie 30%/10%、tv 5%/30%、music 0%/55%、sports 10%/40%。
+  // 只收 movie——tv/music/sports 以开机、首映礼、推广曲、赛事通稿为主，
+  // 接进来只会稀释选题池（选题只挑 LIMIT 条，噪音会挤掉真热点）。
+  ifengmov: { name: '凤凰影视', fetch: () => fetchIfengList('https://ent.ifeng.com/movie/') },
 };
 
 async function fetchHotLists() {
@@ -108,11 +114,10 @@ async function fetch60s(src) {
   return json.data.slice(0, 20).map(src.map);
 }
 
-// ---------- 凤凰网娱乐·明星（ent.ifeng.com/star/）----------
+// ---------- 凤凰网娱乐列表页（ent.ifeng.com/star/、/movie/）----------
 // 页面把列表数据以 "newsstream":[...] 的形式内联在 HTML 里，字段齐整（含发布时间和封面），
 // 比解析 DOM 稳。只取标题/链接/时间/封面当**选题线索**，不抓正文——
 // 抓正文再改写就从「选题参考」变成洗稿了，风险性质完全不同。
-const IFENG_ENT_URL = 'https://ent.ifeng.com/star/';
 const IFENG_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 // 从 from 处截出一个配平的 JSON 数组。字符串内的方括号不能参与配平，
@@ -134,8 +139,9 @@ function sliceJsonArray(s, from) {
   return null;
 }
 
-async function fetchIfengEnt() {
-  const res = await fetch(IFENG_ENT_URL, {
+// 凤凰各频道列表页共用同一套内联 newsstream 结构，按 URL 参数化即可复用。
+async function fetchIfengList(url) {
+  const res = await fetch(url, {
     headers: { 'User-Agent': IFENG_UA },
     signal: AbortSignal.timeout(15000),
   });
@@ -193,7 +199,14 @@ function releaseLock() {
 
 // ---------- 去重状态 ----------
 function loadState() {
-  try { return JSON.parse(readFileSync(STATE_FILE, 'utf8')); } catch { return { done: {} }; }
+  let s;
+  try { s = JSON.parse(readFileSync(STATE_FILE, 'utf8')); } catch { return { done: {} }; }
+  // 事件登记表只用于近 7 天避重，留 30 天足够；不清理会随时间无限膨胀。
+  if (s.events) {
+    const cut = new Date(Date.now() - 30 * 86400000).toISOString();
+    for (const [k, v] of Object.entries(s.events)) if (!v?.at || v.at < cut) delete s.events[k];
+  }
+  return s;
 }
 function fingerprint(title) {
   return title.replace(/[\s\p{P}\p{S}]/gu, '').toLowerCase().slice(0, 40);
@@ -575,16 +588,31 @@ const DEFAULT_PICK_PROMPT = `你是吃瓜资讯站「今日吃瓜」的选题编
 
 {{topics}}
 
+本站最近 7 天已经写过的文章如下（同一事件不要再写第二遍）：
+
+{{covered}}
+
 从中选出最多 {{limit}} 个适合本站的选题。硬性规则：
 - 只选「吃瓜向」：明星/网红/影视综艺/社会趣闻/体育人物/海外热点/情感话题等大众娱乐谈资
 - 必须排除：时政、政府政策、领导人、军事外交、民族宗教、重大灾难伤亡、疫情防控等严肃或敏感议题
 - 同一事件在多个榜单出现的，合并为一个选题（refs 列出所有相关编号）
+- 【避免重复选题·最重要】每个选题必须给出 eventKey：该事件的稳定标识，用「核心当事人/作品 + 核心动作」概括成 4~12 个汉字，不带任何情绪词和角度词。
+  例：「詹姆斯加盟76人」「李权哲高铁占座」「菲尔兹奖2026」「正颌手术做反」。
+  同一件事无论从哪个角度写、无论出现在哪个榜单，eventKey 都必须完全一致；
+  上面已写文章里若已标出 eventKey，命中同一事件时必须原样复用那个 key，不要另起一个。
+- 上面「已经写过的文章」覆盖的事件，默认一律不许再选。只有同时满足下面两条才可以追更：
+  ① 出现了实质性新进展——官方通报/权威结论、当事人首次回应、剧情反转、法律或行政处理结果；
+     热度上涨、换个角度、又有网友讨论、更多细节流出，都不算新进展；
+  ② 你能在 newDevelopment 里用一句话说清「新在哪、跟旧文差在哪」。
+  满足就把 followUp 设为 true、prevPath 填上面那篇旧文的路径；不满足就换别的选题。
+  宁可少选几篇，也不要把同一件事写第二遍——站内同题内容对 SEO 是负分。
+- 本批内部同样不许重复：两个选题的 eventKey 不得相同（跨榜单是同一件事就合并成一个）
 - 每个选题从以下频道中选最贴切的一个：
 {{channels}}
 - angle（切入角度）本批之间必须各不相同：不要所有选题都写成「争议/网友吵翻」一个路子。可用的角度类型举例：还原过程、核实真假、扒背景关系、对比同类事件、当事人回应、围观者反应、行业视角、旧事重提。同一批里同一种角度类型最多用 2 次
 
 只输出 JSON 数组，不要任何其他文字：
-[{"topic":"选题概括(一句话)","angle":"吃瓜切入角度(一句话)","channelSlug":"频道slug","refs":[相关条目编号]}]`;
+[{"topic":"选题概括(一句话)","angle":"吃瓜切入角度(一句话)","channelSlug":"频道slug","eventKey":"事件稳定标识","followUp":false,"newDevelopment":"","prevPath":"","refs":[相关条目编号]}]`;
 
 const DEFAULT_WRITE_PROMPT = `【角色】
 {{styleRole}}
@@ -684,6 +712,17 @@ function bigrams(s) {
   for (let i = 0; i < t.length - 1; i++) out.add(t.slice(i, i + 2));
   return out;
 }
+
+// 体裁模板词：由 WRITE_STYLES 的「标题写法」批量生产，与事件本身无关。
+// 留在串里会制造两类错判：① 两篇毫不相干的文章仅凭同一个后缀就被判重复
+// （实测「患癌老太打赏男主播…评论区吵翻了」vs「70岁保洁阿姨被判替女还债…评论区吵翻了」
+// 原始相似度 0.188，比多数真重复还高）；② 真重复的分子被模板词稀释而压到阈值以下。
+// 比相似度前先剥掉，信号噪声比会明显变好（见下方阈值说明）。
+const TITLE_TPL = /(网友(直呼|吵翻了?|热议|都在|玩梗|们?说)?|评论区(吵翻了?|见)?|引(发)?(热议|围观|争议|论战|全网关注)|上了?热搜|冲上热搜|刷屏|吵翻了?|两派(吵起来了?|吵开|各说各话)|全网|始末|背后|起底|扒一扒|一次说清|说清了?吗|捋清楚|厘清|真的吗|到底是?怎么回事|这(事|几个问题|个疑问)|几个(问题|疑问)|先(捋|厘)|为什么|咋样|来了|突然|疑似|传闻|曝光|细节|档案|真相|问得最多|还没人正面回应)/g;
+function stripTpl(s) {
+  return String(s || '').replace(TITLE_TPL, '');
+}
+
 function similarity(a, b) {
   const A = bigrams(a); const B = bigrams(b);
   if (!A.size || !B.size) return 0;
@@ -691,17 +730,22 @@ function similarity(a, b) {
   for (const x of A) if (B.has(x)) inter += 1;
   return inter / (A.size + B.size - inter);
 }
-// 阈值 0.30：用全量 262 条历史标题跑过分布——≥0.30 的 9 对全部是同一事件被写了两遍
-// （昆明吃菌子 0.76、詹姆斯签约 0.32/0.31、正颌手术 0.31、土耳其捅 6 刀 0.30…），
-// 0.30 以下没有真重复，误杀风险低。
-const DUP_THRESHOLD = 0.30;
+// 阈值 0.15（剥模板词之后）：用全量 376 条历史标题重新跑过分布。
+// 旧口径（原始标题 + 0.30）实测只抓到 6% 的真重复——因为 writePrompt 会把「最近已用写法」
+// 注入禁令，主动逼模型把标题写得不像，守卫等于在跟提示词对着干。
+// 剥掉模板词后两类分离得很干净：无关对 0.00~0.07，真重复 0.13~0.24
+// （詹姆斯 0.23、敬一丹 0.24、李权哲 0.20、正颌 0.13）。
+// 注意这一层只是兜底：同事件不同角度（菲尔兹奖「北大同学获奖」vs「南开老师陪跑」= 0.10）
+// 字符串永远追不上，那类靠 coveredBlock 在选题阶段拦（见下）。
+const DUP_THRESHOLD = 0.15;
 
 async function findNearDuplicate(title, n = 120) {
   try {
     const res = await strapi(`/articles?sort=createdAt:desc&pagination[pageSize]=${n}&fields[0]=title&fields[1]=slug`);
     let best = null;
+    const mine = stripTpl(title);
     for (const a of res.data || []) {
-      const score = similarity(title, a.title);
+      const score = similarity(mine, stripTpl(a.title));
       if (score >= DUP_THRESHOLD && (!best || score > best.score)) best = { title: a.title, slug: a.slug, score };
     }
     return best;
@@ -709,6 +753,99 @@ async function findNearDuplicate(title, n = 120) {
     console.warn(`[warn] 近重复检查失败（跳过）: ${e.message.slice(0, 60)}`);
     return null;
   }
+}
+
+// ---------- 已写事件登记表（选题阶段的主防线）----------
+// 字符串相似度治不了真正的病灶：同一事件连写 5 天、每天换个角度换套说法，
+// 标题之间几乎没有公共子串（菲尔兹奖 11 篇 / 詹姆斯 10 篇 / 李权哲 6 篇都是这么来的）。
+// 唯一能识别「这还是那件事」的环节是选题 LLM——但它此前对已发内容一无所知。
+// 这里把近 EVENT_COOLDOWN_DAYS 天写过的事件喂回选题提示词，并要求模型给每个选题
+// 标一个稳定的 eventKey，落库后记进 state.events，形成跨轮次记忆。
+const EVENT_COOLDOWN_DAYS = 7;
+
+function eventKeyOf(s) {
+  return String(s || '').replace(/[\s\p{P}\p{S}]/gu, '').toLowerCase().slice(0, 24);
+}
+
+// 近期已覆盖事件：以站内实际文章为准（自带种子，无需回填历史 eventKey），
+// 再并上 state.events 里已知的 eventKey，让模型能原样复用同一个 key。
+async function fetchCoveredEvents(state, days = EVENT_COOLDOWN_DAYS) {
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const byKey = new Map();
+  for (const [k, v] of Object.entries(state.events || {})) {
+    if (v?.at >= since) byKey.set(k, { key: k, title: v.title, path: v.path, at: v.at });
+  }
+  try {
+    const res = await strapi(`/articles?sort=createdAt:desc&pagination[pageSize]=100&filters[createdAt][$gte]=${since}&fields[0]=title&fields[1]=slug&fields[2]=createdAt&populate[channel][fields][0]=slug`);
+    for (const a of res.data || []) {
+      const key = eventKeyOf(a.title);
+      if (byKey.has(key)) continue;
+      // 已在 state.events 里登记过同一篇（按 path 认）就不重复列
+      const path = `/${a.channel?.slug || 'news'}/${a.slug}`;
+      if ([...byKey.values()].some((v) => v.path === path)) continue;
+      byKey.set(key, { key: '', title: a.title, path, at: a.createdAt });
+    }
+  } catch (e) {
+    console.warn(`[warn] 已写事件拉取失败（选题去重降级为仅本地记录）: ${e.message.slice(0, 60)}`);
+  }
+  return [...byKey.values()].sort((a, b) => (a.at < b.at ? 1 : -1));
+}
+
+function renderCovered(covered) {
+  if (!covered.length) return '（近期无已发文章）';
+  return covered
+    .map((c) => `- ${c.at.slice(5, 10)}｜${c.title}｜${c.path}${c.key ? `｜eventKey=${c.key}` : ''}`)
+    .join('\n');
+}
+
+// 选题 LLM 会漏——它可能忘了 eventKey、或者认不出换了说法的同一件事。
+// 这里再机器过一遍：eventKey 是「当事人+动作」的核心短语，通常会原样出现在旧文标题里，
+// 所以「归一化后旧标题包含 eventKey」是一条命中率很高的确定性规则。
+function coveredHit(pick, covered) {
+  const key = eventKeyOf(pick.eventKey || pick.topic);
+  if (!key) return null;
+  for (const c of covered) {
+    if (c.key && c.key === key) return c;
+    const t = eventKeyOf(c.title);
+    // 包含判定要求两边都够长：短串（「视频」这种）互相包含纯属偶然，会误伤无关选题
+    if (key.length >= 4 && t.length >= 4 && (t.includes(key) || key.includes(t))) return c;
+    if (similarity(stripTpl(key), stripTpl(t)) >= DUP_THRESHOLD) return c;
+  }
+  return null;
+}
+
+// 追更是否成立：必须说得清「新在哪」。只写「热度持续」「网友继续讨论」不算。
+function validFollowUp(pick) {
+  const nd = String(pick.newDevelopment || '').trim();
+  if (!pick.followUp || nd.length < 8) return false;
+  return !/^(热度|持续|继续|网友|更多细节|讨论|发酵|关注度)/.test(nd);
+}
+
+function dropCoveredPicks(picks, covered) {
+  const out = [];
+  const batchKeys = new Map();
+  for (const p of Array.isArray(picks) ? picks : []) {
+    const key = eventKeyOf(p.eventKey || p.topic);
+    // 批内跨源去重：同一件事在微博/抖音/头条各上一次榜，模型偶尔会当成三个选题
+    if (key && batchKeys.has(key)) {
+      console.warn(`[dup-pick] 「${p.topic}」与本批「${batchKeys.get(key)}」是同一事件(${key})，合并丢弃`);
+      continue;
+    }
+    const hit = coveredHit(p, covered);
+    if (hit) {
+      if (!validFollowUp(p)) {
+        console.warn(`[dup-pick] 「${p.topic}」与已发《${hit.title}》同事件，且无实质新进展，跳过`);
+        continue;
+      }
+      // 追更放行：把旧文路径带下去，成文时强制内链回旧文，形成话题聚合而不是同题竞争
+      p.prevPath = p.prevPath || hit.path;
+      p.prevTitle = hit.title;
+      console.log(`[follow-up] 「${p.topic}」追更《${hit.title}》——新进展：${p.newDevelopment}`);
+    }
+    if (key) batchKeys.set(key, p.topic);
+    out.push(p);
+  }
+  return out;
 }
 
 // SEO 结构自检（对齐 p045 发布后检查清单 + p108 修复后检查标准 + p111 FAQ）
@@ -978,10 +1115,30 @@ async function loadPrompts() {
   }
 }
 
-function pickPrompt(prompts, topics, n) {
-  return render(prompts.pick, {
+// 后台存的选题 prompt 若是旧版（没有 {{covered}} 占位符），运行时补挂避重规则，
+// 保证不用先跑 --upgrade-prompt 也能立刻生效（与 SEO_APPENDIX 同一套路）。
+const DEDUP_APPENDIX = `
+
+【避免重复选题（本轮追加规则，优先级高于上文）】
+本站最近 7 天已经写过的文章：
+{{covered}}
+
+- 每个选题必须给出 eventKey：该事件的稳定标识，用「核心当事人/作品 + 核心动作」概括成 4~12 个汉字，
+  不带情绪词和角度词（例：詹姆斯加盟76人、李权哲高铁占座、菲尔兹奖2026）。
+  同一件事无论换什么角度、出现在哪个榜单，eventKey 必须完全一致；上面若已标出 eventKey 就原样复用。
+- 上面已覆盖的事件默认不许再选。只有「出现实质性新进展（官方通报/当事人首次回应/反转/处理结果）」
+  且能在 newDevelopment 里说清新在哪，才可以追更——此时 followUp=true、prevPath 填旧文路径。
+  热度上涨、换个角度、更多细节流出都不算新进展。宁可少选，也不要同题写两遍。
+- 本批内部两个选题的 eventKey 不得相同。
+- 输出对象需包含："eventKey":"事件稳定标识","followUp":false,"newDevelopment":"","prevPath":""`;
+
+function pickPrompt(prompts, topics, n, covered = []) {
+  let tpl = prompts.pick;
+  if (!tpl.includes('{{covered}}')) tpl += DEDUP_APPENDIX;
+  return render(tpl, {
     topics: topics.map((t, i) => `${i}. [${t.source}] ${t.title} | ${t.heat || '-'} | ${t.desc || '-'}`).join('\n'),
     limit: String(n),
+    covered: renderCovered(covered),
     channels: CHANNELS_DESC.map(([s, d]) => `  ${s}: ${d}`).join('\n'),
   });
 }
@@ -1033,11 +1190,14 @@ async function main() {
 
   // 3. LLM 选题（prompt 优先取后台「热榜二创配置」）
   const prompts = await loadPrompts();
+  const covered = FILL_ONLY ? [] : await fetchCoveredEvents(state);
+  if (covered.length) console.log(`[covered] 近 ${EVENT_COOLDOWN_DAYS} 天已写 ${covered.length} 篇，作为避重清单注入选题`);
   let picks = [];
   if (FILL_ONLY) {
     console.log('[fill-only] 跳过热榜选题，只跑站内主题盘点');
   } else if (fresh.length) {
-    picks = (await llmJSON(pickPrompt(prompts, fresh, LIMIT), '选题')).slice(0, LIMIT);
+    const raw = await llmJSON(pickPrompt(prompts, fresh, LIMIT, covered), '选题');
+    picks = dropCoveredPicks(raw, covered).slice(0, LIMIT);
     console.log(`[pick] 选出 ${picks.length} 个选题：${picks.map((p) => p.topic).join(' / ')}`);
   } else {
     console.log('[dedup] 热榜无新话题');
@@ -1063,10 +1223,14 @@ async function main() {
   // 标签治理（防孤岛）：已存在标签集合 + 推荐复用清单（按使用频次降序）注入 prompt，
   // 引导 LLM 优先复用；配合入库时「每篇最多新建 1 个标签」的硬约束（见下方）。
   const existingTagSet = new Set(allTags.map((t) => t.name));
+  // 推荐复用清单：只列「已经有文章挂着」的标签，并且尽量给全（原先只给前 60 个，
+  // 词表外的一律靠模型现编，是标签越长越多的第二个来源）。零文章标签不进清单——
+  // 它们本身就是要清理掉的对象，推荐复用等于把垃圾续命。
   const tagLib = allTags
     .map((t) => ({ name: t.name, n: t.articles?.count ?? 0 }))
+    .filter((t) => t.n > 0)
     .sort((a, b) => b.n - a.n)
-    .slice(0, 60)
+    .slice(0, 150)
     .map((t) => t.name);
 
   // 5. 逐选题生成 + 入库（一篇一体裁，轮换 + 最近写法作为动态禁令）
@@ -1085,10 +1249,16 @@ async function main() {
       usedStyles.add(style.key);
       console.log(`[style] 「${sel.topic}」→ ${style.name}(${style.key})${sel.kind === 'fill' ? ' [站内补位]' : ''}`);
       // 补位篇：成员文章优先进内链候选，保证盘点能链回被盘的每一篇
-      const linkCands = sel.kind === 'fill'
+      let linkCands = sel.kind === 'fill'
         ? [...sel.materials.map((m) => ({ title: m.title, path: m.path })),
            ...(await fetchLinkCandidates(sel.channelSlug))]
         : await fetchLinkCandidates(sel.channelSlug);
+      // 追更篇：同事件旧文排在内链候选最前，让新文链回旧文——
+      // 同一事件的多篇由「互相竞争的同题内容」变成「有主次的话题聚合」。
+      if (sel.prevPath) {
+        linkCands = [{ title: sel.prevTitle || '此前的报道', path: sel.prevPath },
+          ...linkCands.filter((c) => c.path !== sel.prevPath)];
+      }
       const basePrompt = writePrompt(prompts, sel, refs, tagLib, style, recentSignals, linkCands);
       let art = await llmJSON(basePrompt, `成文「${sel.topic}」`);
 
@@ -1114,7 +1284,9 @@ async function main() {
       art.content = normalizePunct(art.content);
 
       // 近重复守卫：与近期已发文章高度同题的直接丢弃，不入库（站内重复内容对 SEO 是负分）
-      const dup = await findNearDuplicate(art.title);
+      // 追更篇例外——它与旧文同题是设计使然（已在选题阶段验过「有实质新进展」），
+      // 不豁免的话阈值降到 0.15 后会把正当的后续报道全部误杀。
+      const dup = sel.prevPath ? null : await findNearDuplicate(art.title);
       if (dup) {
         console.warn(`[dup] 「${art.title}」与已发《${dup.title}》相似度 ${dup.score.toFixed(2)}，丢弃不入库`);
         // 这条路径原先无条件落盘，导致 --dry-run 会把选题标记成 done、污染下一次真实运行的去重状态。
@@ -1137,6 +1309,11 @@ async function main() {
           art.content += `\n\n## 相关阅读\n\n${picks.map((p) => `- [${p.title}](${p.path})`).join('\n')}`;
           console.log(`[link] 「${sel.topic}」内链${linkNow.length}条，兜底追加 ${picks.length} 条`);
         }
+      }
+      // 追更篇的回链是硬要求（放行它的前提就是「链回旧文形成聚合」），模型没写就补上
+      if (sel.prevPath && !art.content.includes(`(${sel.prevPath})`)) {
+        art.content += `\n\n## 相关阅读\n\n- [${sel.prevTitle || '此前的报道'}](${sel.prevPath})`;
+        console.log(`[link] 「${sel.topic}」追更篇补回链 → ${sel.prevPath}`);
       }
 
       // 敏感词过滤 → 命中写入 reviewNote 提示人工重点看
@@ -1163,11 +1340,18 @@ async function main() {
         const found = await strapi(`/tags?filters[name][$eq]=${encodeURIComponent(name)}&fields[0]=name`);
         if (found.data.length) tagIds.push(found.data[0].documentId);
       }
+      // 新建标签只在真实入库时进行：dry-run 照常 POST /tags 但文章从不落库，会留下空标签。
+      // （注：存量 395 个空标签里 389 个是 2026-06-19 后台 BulkTags 批量导入的词库，
+      //  不是这条路径造成的；这里堵的是一个真实存在但发作概率低的漏子——
+      //  wanted 只取前 4 个标签，新词往往排在第 5 位被截掉，所以历史上很少触发。）
+      const freshTagIds = [];
       for (const name of brandNew) {
         if (newCount >= MAX_NEW_TAGS) break; // 超额新标签丢弃，抑制孤岛
+        if (DRY) { newCount += 1; continue; }
         const src = (art.tags || []).find((t) => t?.name === name);
         const created = await strapi('/tags', { method: 'POST', body: JSON.stringify({ data: { name, slug: String(src?.slug || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-') || undefined } }) });
         tagIds.push(created.data.documentId);
+        freshTagIds.push({ id: created.data.documentId, name });
         existingTagSet.add(name); // 同轮后续文章即可复用它
         newCount += 1;
       }
@@ -1236,13 +1420,33 @@ async function main() {
         console.log(`      开头：${(body.find((s) => !s.startsWith('#')) || '').slice(0, 50)}…`);
         console.log(`      结尾：…${(body[body.length - 1] || '').slice(-50)}`);
       } else {
-        const created = await strapi(`/articles${publish ? '?status=published' : ''}`, { method: 'POST', body: JSON.stringify({ data }) });
+        // 标签先于文章创建（POST 文章时要带 documentId），文章这一步失败就会留下孤儿标签，
+        // 所以失败时把本篇刚建的新标签删掉再把错抛回去。
+        let created;
+        try {
+          created = await strapi(`/articles${publish ? '?status=published' : ''}`, { method: 'POST', body: JSON.stringify({ data }) });
+        } catch (e) {
+          for (const t of freshTagIds) {
+            try {
+              await strapi(`/tags/${t.id}`, { method: 'DELETE' });
+              console.warn(`[rollback] 文章入库失败，删除刚建的标签「${t.name}」`);
+            } catch { /* 删不掉就留着，由 --clean-tags 兜底 */ }
+          }
+          throw e;
+        }
         console.log(`[save] ${publish ? '已发布' : '草稿'} ✓ ${art.title} /${sel.channelSlug}/${slug} (${created.data.documentId})${hit.length ? ` ⚠️敏感词:${hit.join('、')}` : ''}`);
         if (sel.kind === 'fill') {
           // 同一标签 FILL_COOLDOWN_DAYS 天内不再盘第二次
           state.fills = [...(state.fills || []), { tag: sel.tag, at: new Date().toISOString() }].slice(-60);
         } else {
           for (const r of refs) state.done[fingerprint(r.title)] = { t: r.title.slice(0, 30), at: new Date().toISOString(), doc: created.data.documentId };
+          // 事件登记：下一轮选题时作为「已写事件」注入，并让模型原样复用同一个 eventKey。
+          // 记的是 sel.eventKey（选题阶段的稳定标识）而不是成文标题——标题每篇都被要求写得不一样。
+          const ek = eventKeyOf(sel.eventKey || sel.topic);
+          if (ek) {
+            state.events = state.events || {};
+            state.events[ek] = { title: art.title, path: `/${sel.channelSlug}/${slug}`, at: new Date().toISOString(), doc: created.data.documentId };
+          }
         }
         // 体裁使用记录（只留最近 40 条，供下一轮避重）
         state.styles = [...(state.styles || []), { k: style.key, at: new Date().toISOString() }].slice(-40);

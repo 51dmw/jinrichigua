@@ -54,3 +54,6 @@ data/backups/
 coverage/
 .gstack/
 scripts/hot-sync/state.json
+scripts/hot-sync/.run.lock
+scripts/hot-sync/out.json
+scripts/hot-sync/content_final.txt
