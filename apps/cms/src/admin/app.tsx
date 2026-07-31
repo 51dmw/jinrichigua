@@ -434,8 +434,9 @@ const zhOverrides: Record<string, string> = {
   // ── 浏览器实测补漏：代码实际用的 id 与 en 字典 key 不一致 / 走 defaultMessage，字典 diff 抓不到 ──
   // 列表 STATUS 列头：渲染代码用 .status（en 字典里只有 .publishedAt，故 defaultMessage="Status"）。
   'content-manager.containers.list.table-headers.status': '状态',
-  // 左侧「内容类型」搜索框：代码用 form.Input.search（不是 LeftMenu.Search.label）。两个都补。
-  'content-manager.form.Input.search': '搜索内容类型',
+  // 左侧「内容类型」搜索框用的是 LeftMenu.Search.label。
+  // （form.Input.search 是「视图设置」里那个「开启搜索」开关的标签，之前误标成了「搜索内容类型」。）
+  'content-manager.form.Input.search': '开启搜索',
   'content-manager.components.LeftMenu.Search.label': '搜索内容类型',
   // 左侧菜单「Content-Type Builder」插件名（content-type-builder 插件，key 带该插件前缀）。
   'content-type-builder.plugin.name': '内容类型构建器',
@@ -447,6 +448,450 @@ const zhOverrides: Record<string, string> = {
   'app.containers.Users.EditPage.form.active.label': '已激活',
   'Auth.form.active.label': '已激活',
   'content-manager.App.schemas.data-loaded': '内容类型已加载完成',
+
+  // ── 第三轮：从运行中的后台导出 react-intl 实际合并后的 2640 条 messages，
+  //    与打包产物里全部 814 组 {id, defaultMessage} 对照，把「查不到 id」和
+  //    「查到了但值仍是英文」的两类全部补上。EE 专属页面（审核流/发布计划内部
+  //    页、插件市场）不在本站可用范围，只补它们在导航里露出的名字。──
+
+  // 列表页：批量勾选后的计数条（官方简体包把这个键写成了双前缀，等于没生效）
+  'content-manager.components.TableDelete.label': '已选择 {number, plural, other {# 条}}',
+  // 列表页：批量删除 / 批量取消发布的确认弹窗正文
+  'popUpWarning.bodyMessage.contentType.delete.all': '确定要删除这些条目吗？',
+  'popUpWarning.bodyMessage.contentType.unpublish.all': '确定要取消发布这些条目吗？',
+  'content-manager.actions.unpublish.dialog.radio-label': '请选择取消发布的方式。',
+  // 列表页「视图设置」页
+  'containers.list.displayedFields': '展示的字段',
+  'containers.SettingPage.editSettings.description': '拖动字段来调整布局',
+  'list.table.header.sort': '按 {label} 排序',
+  'list.table.content.empty-label': '此字段为空',
+  'header.actions.no-permissions': '无权限查看',
+
+  // 编辑页：URL 别名（uid 字段）右侧的可用性检测
+  'content-manager.components.uid.available': '可用',
+  'content-manager.components.uid.unavailable': '已被占用',
+  'content-manager.components.uid.regenerate': '重新生成',
+
+  // 通用控件 / 兜底文案
+  'app.components.Select.placeholder': '请选择',
+  'components.Select.placeholder': '请选择',
+  'components.placeholder.select': '请选择',
+  'global.localeToggle.label': '选择界面语言',
+  'global.move': '移动',
+  'app.utils.toggle': '切换',
+  'app.error': '出错了',
+  'app.error.copy': '复制到剪贴板',
+  'app.error.message':
+    '你的实例里似乎出现了一个缺陷。请通知技术同事排查来源，并通过 {link} 提交问题反馈。',
+  'app.components.Onboarding.help.button-close': '关闭帮助菜单',
+  'app.utils.show-bound-route': '查看 {route} 的绑定路由',
+  'content-manager.pageNotFound': '页面不存在',
+  'content-manager.pages.NoContentType.text': '你还没有任何内容，建议先创建第一个内容类型。',
+  'noPreview': '无可预览内容',
+
+  // 拖拽排序的读屏播报（视图设置页拖字段、动态区块排序都会用到）
+  'dnd.grab-item':
+    '{item} 已抓起。当前位置：第 {position} 位。按上下方向键调整位置，空格键放下，Esc 取消。',
+  'dnd.drop-item': '{item} 已放下。最终位置：第 {position} 位。',
+  'dnd.cancel-item': '{item} 已放下，重新排序已取消。',
+  'dnd.reorder': '{item} 已移动。新位置：第 {position} 位。',
+
+  // 预览 / 内容历史（这几个键代码里写的是不带插件前缀的 id）
+  'preview.copy.label': '复制预览链接',
+  'preview.tabs.label': '文档状态',
+  'content-manager.restore.success.title': '版本已还原。',
+  'content-manager.restore.success.message': '已还原该内容的历史版本。',
+  'content-manager.history.sidebar.title.version-card.aria-label': '版本卡片',
+  'history.content.localized':
+    '此值为该语言特有。如果还原此版本，其它语言的内容不会被替换。',
+  'history.content.not-localized':
+    '此值为所有语言共用。如果还原此版本并保存，所有语言的内容都会被替换。',
+
+  // 媒体库（选封面图时会弹出，属于日常路径）
+  'list.assets.empty': '媒体库还是空的',
+  'list.assets.empty-upload': '上传你的第一个素材……',
+  'list.assets-empty.title-withSearch': '没有符合当前筛选条件的素材',
+  'list.asset.at.finished': '素材加载完成。',
+  'modal.remove.success-label': '已成功删除所选内容。',
+  'modal.folder.move.submit': '移动',
+  'window.confirm.close-modal.file': '确定要关闭吗？未保存的修改会丢失。',
+  'window.confirm.close-modal.files': '确定要关闭吗？还有文件没有上传完成。',
+  'view-switch.grid': '网格视图',
+  'view-switch.list': '列表视图',
+
+  // 设置页
+  'Settings.application.header': '应用信息',
+  'Settings.roles.form.input.url': 'URL 地址',
+  'Settings.transferTokens.types.pull': '只读（拉取）',
+  'Settings.transferTokens.types.push': '只写（推送）',
+  'Settings.transferTokens.types.push-pull': '完全访问',
+  'Settings.sso.subTitle': '配置单点登录（SSO）相关设置。',
+  'Settings.permissions.auditLogs.filter.aria-label': '搜索并选择用于筛选的选项',
+  'Settings.locales.modal.create.code.error': '请选择一个语言',
+  'Settings.locales.modal.create.name.error.min': '语言显示名称不能超过 50 个字符。',
+  'Settings.locales.modal.create.name.error.required': '请填写语言显示名称',
+  'email.Settings.email.plugin.notification.test.error': '向 {to} 发送测试邮件失败',
+  'email.Settings.email.plugin.notification.test.success': '测试邮件已发送，请查收 {to} 邮箱',
+  'admin.pages.MarketPlacePage.production': '请在开发环境下管理插件',
+  // EE 功能本站不可用，只汉化它们在左侧栏/设置栏里露出的名字
+  'content-releases.plugin.name': '发布计划',
+  'content-releases.pages.Settings.releases.title': '发布计划',
+  'Settings.review-workflows.list.page.title': '审核流',
+
+  // ── 第四轮：定位到系统性成因，一次补齐 ──
+  // 官方 Strapi 5.7 的 content-manager / i18n 简体包，把自己 dict 里的键写成了
+  // 「content-manager.xxx」；插件翻译在装载时还会再加一层插件名前缀，于是变成
+  // 「content-manager.content-manager.xxx」，永远查不到 —— 这批键等于没翻译，
+  // 界面直接掉回英文 defaultMessage。前几轮是逐条撞见逐条补，这里按 en 字典
+  // 逐键比对运行时实际合并出的 messages，把剩下的 190 条一次补完。
+  // （其中一部分是 Strapi 4 时代的遗留键，当前界面不一定走到，补上不影响。）
+
+  // 视图设置页（列表页右上角齿轮）
+  'content-manager.components.SettingsViewWrapper.pluginHeader.title': '配置视图 — {name}',
+  'content-manager.components.SettingsViewWrapper.pluginHeader.description.list-settings':
+    '设置列表页的展示方式。',
+  'content-manager.components.SettingsViewWrapper.pluginHeader.description.edit-settings':
+    '自定义编辑页的展示方式。',
+  'content-manager.containers.SettingPage.settings': '设置',
+  'content-manager.containers.SettingPage.view': '视图',
+  'content-manager.containers.SettingPage.layout': '布局',
+  'content-manager.containers.SettingPage.editSettings.description': '拖动字段来调整布局',
+  'content-manager.containers.SettingPage.editSettings.title': '编辑页（设置）',
+  'content-manager.containers.SettingPage.editSettings.entry.title': '条目标题',
+  'content-manager.containers.SettingPage.editSettings.entry.title.description':
+    '设置条目用哪个字段来显示',
+  'content-manager.containers.SettingPage.editSettings.relation-field.description':
+    '设置该关联在编辑页和列表页显示哪个字段',
+  'content-manager.containers.SettingPage.listSettings.title': '列表页（设置）',
+  'content-manager.containers.SettingPage.listSettings.description': '配置该集合类型的选项',
+  'content-manager.containers.SettingPage.pluginHeaderDescription': '配置该集合类型的专属设置',
+  'content-manager.containers.SettingPage.attributes': '字段',
+  'content-manager.containers.SettingPage.attributes.description': '设定字段的排列顺序',
+  'content-manager.containers.SettingPage.relations': '关联字段',
+  'content-manager.containers.SettingPage.add.field': '再加一个字段',
+  'content-manager.containers.SettingPage.add.relational-field': '再加一个关联字段',
+  'content-manager.containers.list.displayedFields': '展示的字段',
+  'content-manager.global.displayedFields': '展示的字段',
+  'content-manager.components.FieldSelect.label': '添加字段',
+  'content-manager.containers.EditSettingsView.modal-form.edit-field': '编辑字段',
+  'content-manager.containers.SettingViewModel.pluginHeader.title': '内容管理 — {name}',
+  'content-manager.containers.SettingsPage.Block.contentType.title': '集合类型',
+  'content-manager.containers.SettingsPage.Block.contentType.description': '配置各自的专属设置',
+  'content-manager.containers.SettingsPage.Block.generalSettings.title': '通用',
+  'content-manager.containers.SettingsPage.Block.generalSettings.description':
+    '配置所有集合类型的默认选项',
+  'content-manager.containers.SettingsPage.pluginHeaderDescription': '配置全部集合类型与组件的设置',
+  'content-manager.containers.SettingsView.list.title': '展示配置',
+  'content-manager.containers.SettingsView.list.subtitle': '配置集合类型与组件的布局和展示方式',
+  'content-manager.edit-settings-view.link-to-ctb.components': '编辑该组件',
+  'content-manager.edit-settings-view.link-to-ctb.content-types': '编辑该内容类型',
+  'content-manager.components.FieldItem.linkToComponentLayout': '设置该组件的布局',
+  'content-manager.notification.error.displayedFields': '至少要保留一个展示字段',
+  'content-manager.notification.info.minimumFields': '至少要保留一个展示字段',
+  'content-manager.notification.info.SettingPage.disableSort': '至少要有一个字段允许排序',
+  'content-manager.components.notification.info.maximum-requirement': '字段数量已达上限',
+  'content-manager.components.notification.info.minimum-requirement': '已自动补一个字段以满足最少数量要求',
+  'content-manager.popUpWarning.warning.updateAllSettings': '这会改动你的全部设置',
+
+  // 视图设置页的字段表单
+  'content-manager.form.Input.label': '标签',
+  'content-manager.form.Input.label.inputDescription': '该值会覆盖表头显示的名称',
+  'content-manager.form.Input.description': '描述',
+  'content-manager.form.Input.description.placeholder': '在编辑页显示的说明',
+  'content-manager.form.Input.placeholder': '占位提示',
+  'content-manager.form.Input.placeholder.placeholder': '示例文字',
+  'content-manager.form.Input.editable': '可编辑字段',
+  'content-manager.form.Input.wysiwyg': '以富文本编辑器展示',
+  'content-manager.form.Input.filters': '开启筛选',
+  'content-manager.form.Input.bulkActions': '开启批量操作',
+  'content-manager.form.Input.search.field': '该字段可被搜索',
+  'content-manager.form.Input.sort.field': '该字段可用于排序',
+  'content-manager.form.Input.defaultSort': '默认排序字段',
+  'content-manager.form.Input.sort.order': '默认排序方向',
+  'content-manager.form.Input.pageEntries': '每页条数',
+  'content-manager.form.Input.pageEntries.inputDescription':
+    '提示：该值可在各集合类型的设置页里单独覆盖。',
+
+  // 筛选器
+  'content-manager.components.AddFilterCTA.add': '筛选器',
+  'content-manager.components.AddFilterCTA.hide': '筛选器',
+  'content-manager.components.FilterOptions.button.apply': '应用',
+  'content-manager.components.FiltersPickWrapper.PluginHeader.title.filter': '筛选器',
+  'content-manager.components.FiltersPickWrapper.PluginHeader.description': '设置筛选条目的条件',
+  'content-manager.components.FiltersPickWrapper.PluginHeader.actions.apply': '应用',
+  'content-manager.components.FiltersPickWrapper.PluginHeader.actions.clearAll': '全部清除',
+  'content-manager.components.FiltersPickWrapper.hide': '收起',
+
+  // 列表页：空态 / 批量操作 / 分页
+  'content-manager.components.TableEmpty.withoutFilter': '还没有{contentType}……',
+  'content-manager.components.TableEmpty.withFilters': '没有符合当前筛选条件的{contentType}……',
+  'content-manager.components.TableEmpty.withSearch': '没有匹配「{search}」的{contentType}……',
+  'content-manager.components.TableDelete.delete': '全部删除',
+  'content-manager.components.TableDelete.deleteSelected': '删除所选',
+  'content-manager.components.LimitSelect.itemsPerPage': '每页条数',
+  'content-manager.select.currently.selected': '当前已选 {count} 项',
+  'content-manager.utils.data-loaded': '{number, plural, other {# 条内容}}已加载完成',
+  'content-manager.listView.validation.errors.title': '需要先处理',
+  'content-manager.listView.validation.errors.message':
+    '发布前请确认所有字段都合规（必填项、最少/最多字数等）。',
+  'content-manager.popUpWarning.bodyMessage.contentType.delete.all': '确定要删除这些条目吗？',
+  'content-manager.popUpWarning.bodyMessage.contentType.publish.all': '确定要发布这些条目吗？',
+  'content-manager.popUpWarning.bodyMessage.contentType.unpublish.all': '确定要取消发布这些条目吗？',
+  'content-manager.popUpWarning.bodyMessage.contentType.delete': '确定要删除该内容类型吗？',
+  'content-manager.popUpWarning.warning.has-draft-relations.title': '确认',
+  'content-manager.popUpwarning.warning.has-draft-relations.button-confirm': '仍然发布',
+  'content-manager.popUpWarning.warning.publish-question': '仍然要发布吗？',
+  'content-manager.popUpWarning.warning.unpublish': '如果不发布，这条内容会自动变回草稿。',
+  'content-manager.popUpWarning.warning.unpublish-question': '确定不发布吗？',
+
+  // 编辑页：关联字段 / 动态区块 / 可重复组件
+  'content-manager.EditRelations.title': '关联数据',
+  'content-manager.relation.disconnect': '移除',
+  'content-manager.relation.isLoading': '关联加载中',
+  'content-manager.relation.loadMore': '加载更多',
+  'content-manager.relation.notAvailable': '没有可选的关联',
+  'content-manager.relation.publicationState.draft': '草稿',
+  'content-manager.relation.publicationState.published': '已发布',
+  'content-manager.components.RelationInput.icon-button-aria-label': '拖动',
+  'content-manager.components.Select.draft-info-title': '草稿',
+  'content-manager.components.Select.publish-info-title': '已发布',
+  'content-manager.components.DynamicZone.ComponentPicker-label': '选择一个组件',
+  'content-manager.components.DynamicZone.pick-compo': '选择一个组件',
+  'content-manager.components.DynamicZone.add-component': '向 {componentName} 添加组件',
+  'content-manager.components.DynamicZone.delete-label': '删除 {name}',
+  'content-manager.components.DynamicZone.move-up-label': '上移组件',
+  'content-manager.components.DynamicZone.move-down-label': '下移组件',
+  'content-manager.components.DynamicZone.error-message': '组件内有错误',
+  'content-manager.components.DynamicZone.required': '组件为必填项',
+  'content-manager.components.DynamicZone.missing-components':
+    '缺少 {number, plural, other {# 个组件}}',
+  'content-manager.components.RepeatableComponent.error-message': '组件内有错误',
+  'content-manager.components.repeatable.reorder.error': '组件字段排序失败，请重试',
+  'content-manager.components.reset-entry': '重置条目',
+  'content-manager.containers.EditView.notification.errors': '表单中存在错误',
+  'content-manager.notification.upload.error': '上传文件时出错',
+  'content-manager.notification.error.relationship.fetch': '拉取关联数据时出错。',
+
+  // 编辑页：URL 别名（uid）辅助词
+  'content-manager.components.uid.apply': '采用',
+  'content-manager.components.uid.suggested': '建议值',
+
+  // 拖拽排序读屏播报
+  'content-manager.dnd.instructions': '按空格键抓起并重新排序',
+  'content-manager.dnd.grab-item':
+    '{item} 已抓起。当前位置：第 {position} 位。按上下方向键调整位置，空格键放下，Esc 取消。',
+  'content-manager.dnd.drop-item': '{item} 已放下。最终位置：第 {position} 位。',
+  'content-manager.dnd.cancel-item': '{item} 已放下，重新排序已取消。',
+  'content-manager.dnd.reorder': '{item} 已移动。新位置：第 {position} 位。',
+  'content-manager.components.DragHandle-label': '拖动',
+  'content-manager.components.DraggableAttr.edit': '点击编辑',
+  'content-manager.components.DraggableCard.move.field': '移动 {item}',
+  'content-manager.components.DraggableCard.edit.field': '编辑 {item}',
+  'content-manager.components.DraggableCard.delete.field': '删除 {item}',
+
+  // 操作结果提示
+  'content-manager.success.record.save': '已保存',
+  'content-manager.success.record.publish': '已发布',
+  'content-manager.success.record.unpublish': '已取消发布',
+  'content-manager.success.record.delete': '已删除',
+  'content-manager.permissions.not-allowed.create': '你没有创建该内容的权限',
+  'content-manager.permissions.not-allowed.update': '你没有查看该内容的权限',
+
+  // 校验与错误
+  'content-manager.error.validation.required': '此项为必填。',
+  'content-manager.error.validation.json': '不符合 JSON 格式',
+  'content-manager.error.validation.regex': '不符合正则规则。',
+  'content-manager.error.validation.min': '数值过小（最小 {min}）。',
+  'content-manager.error.validation.max': '数值过大（最大 {max}）。',
+  'content-manager.error.validation.minLength': '长度过短（最少 {min}）。',
+  'content-manager.error.validation.maxLength': '长度过长（最多 {max}）。',
+  'content-manager.error.validation.minSupMax': '不能更大',
+  'content-manager.error.attribute.taken': '该字段名已存在',
+  'content-manager.error.attribute.key.taken': '该值已存在',
+  'content-manager.error.attribute.sameKeyAndName': '不能相同',
+  'content-manager.error.contentTypeName.taken': '该名称已存在',
+  'content-manager.error.model.fetch': '拉取模型配置时出错。',
+  'content-manager.error.schema.generation': '生成 schema 时出错。',
+  'content-manager.error.record.create': '创建记录时出错。',
+  'content-manager.error.record.update': '更新记录时出错。',
+  'content-manager.error.record.delete': '删除记录时出错。',
+  'content-manager.error.record.fetch': '拉取记录时出错。',
+  'content-manager.error.records.fetch': '拉取记录时出错。',
+  'content-manager.error.records.count': '统计记录数时出错。',
+
+  // 空内容类型引导 / 插件描述等边角
+  'content-manager.emptyAttributes.title': '还没有任何字段',
+  'content-manager.emptyAttributes.description': '给这个集合类型加上第一个字段吧',
+  'content-manager.emptyAttributes.button': '前往内容类型构建器',
+  'content-manager.components.EmptyAttributesBlock.description': '你可以修改这些设置',
+  'content-manager.components.EmptyAttributesBlock.button': '前往设置页',
+  'content-manager.pages.NoContentType.button': '创建第一个内容类型',
+  'content-manager.containers.Home.pluginHeaderTitle': '内容管理',
+  'content-manager.containers.Home.pluginHeaderDescription': '在这里管理你的全部内容。',
+  'content-manager.containers.Home.introduction': '从左侧菜单进入具体的内容类型即可编辑数据。',
+  'content-manager.plugin.description.short': '快速查看、编辑和删除数据库里的数据。',
+  'content-manager.plugin.description.long': '快速查看、编辑和删除数据库里的数据。',
+  'content-manager.models.numbered': '集合类型（{number}）',
+  'content-manager.groups.numbered': '组件（{number}）',
+  'content-manager.api.id': 'API ID',
+  'content-manager.reviewWorkflows.stage.label': '审核阶段',
+
+  // i18n 插件（本站只有单语言，但这些词会在编辑页/设置页露出）
+  'i18n.actions.select-locale': '选择语言',
+  'i18n.actions.delete.label': '删除条目（{locale}）',
+  'i18n.actions.delete.dialog.title': '确认',
+  'i18n.actions.delete.dialog.body': '确定要删除该语言版本吗？',
+  'i18n.actions.delete.error': '删除该语言版本时出错。',
+  'i18n.CMEditViewCopyLocale.cancel-text': '取消',
+  'i18n.CMEditViewCopyLocale.dialog.title': '确认',
+  'i18n.CMEditViewCopyLocale.dialog.body': '当前内容会被清空，并填入所选语言的内容：',
+  'i18n.CMEditViewCopyLocale.dialog.field.label': '语言',
+  'i18n.CMEditViewCopyLocale.dialog.field.placeholder': '选择一个语言……',
+  'i18n.CMEditViewBulkLocale.publish-title': '发布多个语言版本',
+  'i18n.CMEditViewBulkLocale.unpublish-title': '取消发布多个语言版本',
+  'i18n.CMEditViewBulkLocale.status': '状态',
+  'i18n.CMEditViewBulkLocale.publication-status': '发布状态',
+  'i18n.CMEditViewBulkLocale.draft-relation-warning':
+    '部分语言版本关联了草稿条目，发布后可能在站点上留下失效链接。',
+  'i18n.CMEditViewBulkLocale.continue-confirmation': '确定要继续吗？',
+  'i18n.CMEditViewLocalePicker.locale.create': '创建 <bold>{locale}</bold> 语言版本',
+  'i18n.CMListView.popover.display-locales.label': '显示已翻译的语言',
+  'i18n.Settings.list.actions.publishAdditionalInfos':
+    '这会发布启用中的各语言版本 <em>（来自多语言插件）</em>',
+  'i18n.Settings.list.actions.unpublishAdditionalInfos':
+    '这会取消发布启用中的各语言版本 <em>（来自多语言插件）</em>',
+  'i18n.Settings.locales.default': '默认',
+  'i18n.Settings.locales.row.displayName': '显示名称',
+  'i18n.Settings.locales.list.sort.id': '按 ID 排序',
+  'i18n.Settings.locales.list.sort.displayName': '按显示名称排序',
+  'i18n.Settings.locales.list.sort.default': '按默认语言排序',
+  'i18n.Settings.locales.modal.create.code.error': '请选择一个语言',
+  'i18n.Settings.locales.modal.create.name.description': '该语言在管理后台里会以这个名称显示',
+  'i18n.Settings.locales.modal.create.name.error.min': '语言显示名称不能超过 50 个字符。',
+  'i18n.Settings.locales.modal.create.name.error.required': '请填写语言显示名称',
+
+  // ── 第五轮：把审计范围从 content-manager / i18n 扩到剩下全部语言包分片
+  //    （admin 核心、content-type-builder、upload、users-permissions、email、cloud），
+  //    同样用「en 字典逐键 × 运行时合并后的 messages」比对。剩余英文里，
+  //    专有名词（URL / JSON / UID / GraphQL / Sentry / Webhooks）、纯占位插值
+  //    （{firstname} {lastname}）、示例邮箱与 EE 专属键保持原样，其余补齐。──
+
+  // 内容类型构建器：字段类型
+  'content-type-builder.attribute.customField': '自定义字段',
+  'content-type-builder.attribute.blocks': '富文本（区块）',
+  'content-type-builder.attribute.blocks.description': '基于 JSON 的新版富文本编辑器',
+  'content-type-builder.attribute.timestamp': '时间戳',
+  'content-type-builder.modelPage.attribute.relation-polymorphic': '关联（多态）',
+
+  // 内容类型构建器：左侧分组与列表页
+  'content-type-builder.menu.section.models.name': '集合类型',
+  'content-type-builder.menu.section.single-types.name': '单例类型',
+  'content-type-builder.menu.section.components.name': '组件',
+  'content-type-builder.listView.headerLayout.description': '搭建内容的数据结构',
+  'content-type-builder.button.single-types.create': '创建单例类型',
+  'content-type-builder.table.button.no-fields': '添加字段',
+  'content-type-builder.table.content.create-first-content-type': '创建第一个集合类型',
+  'content-type-builder.table.content.no-fields.collection-type': '给该集合类型添加第一个字段',
+  'content-type-builder.table.content.no-fields.component': '给该组件添加第一个字段',
+
+  // 内容类型构建器：新建/编辑弹窗
+  'content-type-builder.form.button.collection-type.name': '集合类型',
+  'content-type-builder.form.button.collection-type.description': '适合多条数据，如文章、商品、评论等。',
+  'content-type-builder.form.button.single-type.name': '单例类型',
+  'content-type-builder.form.button.single-type.description': '适合只有一条的数据，如「关于我们」、首页等。',
+  'content-type-builder.form.button.add.field.to.collectionType': '给该集合类型再加一个字段',
+  'content-type-builder.form.button.add.field.to.contentType': '给该内容类型再加一个字段',
+  'content-type-builder.form.button.add.field.to.singleType': '给该单例类型再加一个字段',
+  'content-type-builder.modalForm.singleType.header-create': '创建单例类型',
+  'content-type-builder.modalForm.sub-header.chooseAttribute.singleType': '为该单例类型选择一个字段',
+  'content-type-builder.modalForm.attribute.form.base.name.placeholder': '如 slug、seoUrl、canonicalUrl',
+  'content-type-builder.modalForm.attribute.target-field': '来源字段',
+  'content-type-builder.modalForm.tabs.default': '默认',
+  'content-type-builder.modalForm.tabs.custom': '自定义',
+  'content-type-builder.modalForm.tabs.label': '默认类型与自定义类型选项卡',
+  'content-type-builder.modalForm.tabs.custom.howToLink': '如何添加自定义字段',
+  'content-type-builder.modalForm.custom-fields.advanced.settings.extended': '扩展设置',
+  'content-type-builder.modalForm.empty.heading': '这里还什么都没有。',
+  'content-type-builder.modalForm.empty.sub-heading': '在丰富的扩展里找到你需要的。',
+  'content-type-builder.modalForm.empty.button': '添加自定义字段',
+  'content-type-builder.components.SelectComponents.displayed-value':
+    '已选 {number, plural, other {# 个组件}}',
+  'content-type-builder.form.attribute.item.date.type.date': 'date（如 01/01/{currentYear}）',
+  'content-type-builder.form.attribute.item.date.type.datetime':
+    'datetime（如 01/01/{currentYear} 00:00 AM）',
+  'content-type-builder.form.attribute.item.date.type.time': 'time（如 00:00 AM）',
+  'content-type-builder.form.attribute.item.text.regex': '正则表达式',
+  'content-type-builder.form.attribute.item.text.regex.description': '填写正则表达式的内容',
+  'content-type-builder.form.attribute.item.uniqueField.v5.disabled':
+    '组件内的「唯一」字段目前无法正常工作，在修复前该选项已被禁用。',
+  'content-type-builder.form.attribute.media.allowed-types': '选择允许的媒体类型',
+  'content-type-builder.form.attribute.media.allowed-types.option-images': '图片',
+  'content-type-builder.form.attribute.media.allowed-types.option-videos': '视频',
+  'content-type-builder.form.attribute.media.allowed-types.option-files': '文件',
+
+  // 内容类型构建器：图标选择器（组件分组用）
+  'content-type-builder.IconPicker.search.placeholder.label': '搜索图标',
+  'content-type-builder.IconPicker.search.button.label': '图标搜索按钮',
+  'content-type-builder.IconPicker.search.clear.label': '清空图标搜索',
+  'content-type-builder.IconPicker.remove.tooltip': '移除已选图标',
+  'content-type-builder.IconPicker.remove.button': '移除已选图标按钮',
+  'content-type-builder.IconPicker.emptyState.label': '没有找到图标',
+  'content-type-builder.IconPicker.icon.label': '选择「{icon}」图标',
+
+  // 内容类型构建器：校验与警告
+  'content-type-builder.error.attributeName.reserved-name': '该名称是保留字，用作字段名可能导致其它功能异常',
+  'content-type-builder.error.contentType.singularName-used': '不能与复数 API ID 相同',
+  'content-type-builder.error.contentType.pluralName-used': '不能与单数 API ID 相同',
+  'content-type-builder.error.contentType.singularName-equals-pluralName':
+    '不能与其它内容类型的复数 API ID 相同。',
+  'content-type-builder.error.contentType.pluralName-equals-singularName':
+    '不能与其它内容类型的单数 API ID 相同。',
+  'content-type-builder.error.contentType.pluralName-equals-collectionName':
+    '该值已被其它内容类型占用。',
+  'content-type-builder.error.validation.positive': '必须是正数',
+  'content-type-builder.error.validation.regex': '正则表达式不合法',
+  'content-type-builder.error.validation.enum-empty-string': '不允许空字符串',
+  'content-type-builder.error.validation.enum-duplicate': '不允许重复值（只按字母和数字比较）。',
+  'content-type-builder.error.validation.enum-regex':
+    '至少有一个值不合法：每个值在第一个数字之前必须先出现一个字母。',
+  'content-type-builder.error.validation.relation.targetAttribute-taken': '该名称在目标内容类型里已存在',
+  'content-type-builder.notification.error.dynamiczone-min.validation':
+    '动态区块里至少要有一个组件，才能保存内容类型',
+  'content-type-builder.popUpWarning.draft-publish.message': '关闭「草稿与发布」后，现有草稿会被删除。',
+  'content-type-builder.popUpWarning.draft-publish.second-message': '确定要关闭吗？',
+  'content-type-builder.popUpWarning.draft-publish.button.confirm': '确定，关闭',
+
+  // 邮件插件设置页
+  'email.Settings.email.plugin.notification.config.error': '获取邮件配置失败',
+  'email.Settings.email.plugin.notification.data.loaded': '邮件设置已加载',
+  // 尖括号在 ICU 里会被当成富文本标签起始，用单引号转义（渲染出来仍是 < >）
+  'email.Settings.email.plugin.placeholder.defaultFrom': "如：Strapi No-Reply '<'no-reply@strapi.io>",
+  'email.Settings.email.plugin.placeholder.defaultReplyTo': "如：Strapi '<'example@strapi.io>",
+  'email.Settings.email.plugin.placeholder.testAddress': '如：developer@example.com',
+  'email.components.Input.error.validation.email': '邮箱格式不正确',
+
+  // Strapi Cloud 插件（本站自建部署，用不到，但它在左侧菜单占一格）
+  'cloud.Plugin.name': '云端部署',
+  'cloud.Homepage.title': 'Strapi 官方全托管云端托管服务',
+  'cloud.Homepage.subTitle': '两步即可获得在生产环境运行 Strapi 所需的一切。',
+  'cloud.Homepage.githubBox.title.versioned': '项目已推送到 GitHub',
+  'cloud.Homepage.githubBox.title.not-versioned': '把项目推送到 GitHub',
+  'cloud.Homepage.githubBox.subTitle.versioned': '搞定！离项目上线只差一步了。',
+  'cloud.Homepage.githubBox.subTitle.not-versioned':
+    '部署到 Strapi Cloud 之前，项目需要先用 GitHub 做版本管理。',
+  'cloud.Homepage.githubBox.buttonText': '上传到 GitHub',
+  'cloud.Homepage.cloudBox.title': '部署到 Strapi Cloud',
+  'cloud.Homepage.cloudBox.subTitle': '享用为 Strapi 优化过的整套环境，含数据库、邮件服务和 CDN。',
+  'cloud.Homepage.cloudBox.buttonText': '部署到 Strapi Cloud',
+  'cloud.Homepage.textBox.label.versioned': '免费试用 Strapi Cloud！',
+  'cloud.Homepage.textBox.label.not-versioned': '为什么要把项目传到 GitHub？',
+  'cloud.Homepage.textBox.text.versioned':
+    'Strapi Cloud 提供 14 天免费试用，可在云端体验项目的全部功能。',
+  'cloud.Homepage.textBox.text.not-versioned':
+    'Strapi Cloud 会从你的 GitHub 仓库拉取并部署项目，这也是版本管理、维护和发布的最佳方式。按 GitHub 上的步骤把项目传上去即可。',
+
+  // 后台设置页零星补漏
+  'Settings.application.customization.carousel.title': '标志',
 };
 
 export default {
