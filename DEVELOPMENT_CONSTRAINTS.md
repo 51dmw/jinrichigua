@@ -140,9 +140,15 @@ pnpm-workspace.yaml
 - **CORS MUST** 锁定到前台域名，禁止 `*`。
 
 **前台（Cloudflare）**
-- MUST 用 **`@opennextjs/cloudflare`** 适配器部署到 **Cloudflare Workers**（**MUST NOT** 用已弃用的 `next-on-pages`）。
-- MUST 开 `nodejs_compat`，`compatibility_date` ≥ `2024-09-23`。
-- ISR 增量缓存 MUST 绑定 **Workers KV**（静态资源可配 R2）。
+
+> ⚠️ **本节已与线上现状不符，勿照做。** 前台实际跑在与后台同一台 VPS 上：
+> PM2 进程 `jrcg-web`（`next start -H 127.0.0.1 -p 3100`）+ Nginx 反代，
+> Cloudflare 只做 DNS/CDN/WAF。实际拓扑见 [`deploy/OPS.md`](deploy/OPS.md)。
+> 下列 MUST 是早期方案的约束，保留作历史记录；本节何时正式改写待定。
+
+- ~~MUST 用 **`@opennextjs/cloudflare`** 适配器部署到 **Cloudflare Workers**（**MUST NOT** 用已弃用的 `next-on-pages`）。~~
+- ~~MUST 开 `nodejs_compat`，`compatibility_date` ≥ `2024-09-23`。~~
+- ~~ISR 增量缓存 MUST 绑定 **Workers KV**（静态资源可配 R2）。~~
 - 构建 SHOULD 走 CI（GitHub Actions，Linux/macOS runner）。
 
 **发布联动（MUST）**

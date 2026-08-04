@@ -12,7 +12,7 @@ SEO 面向 **Google / Bing / Yandex**（不针对百度）。所有开发遵守 
 ```
 /apps
   /cms      # Strapi 5（PostgreSQL）→ 部署到 VPS
-  /web      # Next.js 15 App Router + TS + Tailwind → Cloudflare Workers (OpenNext)
+  /web      # Next.js 15 App Router + TS + Tailwind → 同一台 VPS（PM2 + Nginx）
 /packages
   /shared   # 前后台共享 TS 类型（单一事实来源）
 /deploy     # 部署手册 + Docker/Nginx/上线检查清单
@@ -28,7 +28,7 @@ SEO 面向 **Google / Bing / Yandex**（不针对百度）。所有开发遵守 
 | 数据库 | PostgreSQL 16+（生产禁用 SQLite） |
 | 前台 | Next.js 15 · App Router · TypeScript · Tailwind |
 | 运行时 / 包管理 | Node.js 20 LTS+ · pnpm workspaces |
-| 部署 | Strapi→VPS（Docker/PM2 + Nginx/TLS）；Next→Cloudflare Workers（`@opennextjs/cloudflare`） |
+| 部署 | 前后台同机 VPS：Strapi→Docker Compose，Next→PM2 `next start`，统一由 Nginx 反代；Cloudflare 只做 DNS/CDN |
 
 ---
 
@@ -90,11 +90,19 @@ pnpm dev:web                 # 前台 http://localhost:3000
 
 ## 部署
 
-详见 [`deploy/README.md`](deploy/README.md)（含上线检查清单）。要点：
-- **后台** → VPS：Docker Compose（Strapi+PG+Redis）或 PM2；Nginx 反代 + TLS（certbot）+ admin IP 白名单；CORS 锁前台域名。
-- **前台** → Cloudflare Workers（OpenNext）：ISR 增量缓存绑 Workers KV；`nodejs_compat`。
+线上实际拓扑与运维手册见 [`deploy/OPS.md`](deploy/OPS.md)；初次搭建步骤见 [`deploy/README.md`](deploy/README.md)。要点：
+
+- **前后台跑在同一台 VPS 上**，都由 Nginx 反代：
+  - **后台** → Docker Compose（Strapi + PostgreSQL + Redis），Strapi 绑 `127.0.0.1:1337`。
+  - **前台** → PM2 进程 `jrcg-web`（`next start -H 127.0.0.1 -p 3100`），用 `scripts/deploy-web.sh` 原子切换 `.next` 后重启。
+- **Cloudflare 只做 DNS / CDN / WAF**，不承载前台运行时。
 - **发布联动**：Strapi lifecycle → 前台 `/api/revalidate`（按需 ISR）+ IndexNow 推送 + sitemap 刷新。
-- CI：`.github/workflows/`（lint/typecheck/build + 前台部署）。
+- CI：`.github/workflows/ci.yml`（lint/typecheck/build）。
+
+> **关于 Cloudflare Workers**：`wrangler.toml`、`open-next.config.ts`、`@opennextjs/cloudflare` 依赖、
+> `pnpm --filter web deploy` 脚本和 `.github/workflows/deploy-web.yml` 都还在仓库里，但**当前线上不走这条路**。
+> 那套是早期方案的遗留，未随后续改动验证过。复制到新项目时：要么按上面的 PM2 方案走并删掉这些残留，
+> 要么先自行验证 Workers 路径可用——不要假设它开箱能跑。
 
 ---
 
