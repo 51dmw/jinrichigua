@@ -60,7 +60,17 @@ Strapi 有定时发布 cron：`reviewState=approved` 的草稿每分钟自动重
 
 ---
 
-## 五、SEO 相关
+## 五、拿这套代码起新站
+
+换品牌/域名的完整清单见 `docs/REBRAND.md`。别凭印象改——站名和域名的分布不直觉：
+
+- 站名几乎全在 `apps/cms/src/index.ts` 的播种逻辑里，前台多数地方读 Strapi `global.siteName`
+- 域名在代码里**只有** `apps/web/next.config.ts` 的 R2 图片域是硬编码，其余走 `SITE_URL`
+- 播种函数 `rebrandGuaToday()` 有 store flag 守卫只跑一次，拷库起新站时改代码不会重新播种
+
+---
+
+## 六、SEO 相关
 
 规则落地点分散，改之前先看 `docs/seo-training/` 下的 `SUMMARY.md` 和 `GAP.md`。
 列表页翻页限深 5 页（更深走归档 + sitemap），这是有意的，不是 bug。

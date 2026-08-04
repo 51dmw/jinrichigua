@@ -106,6 +106,19 @@ pnpm dev:web                 # 前台 http://localhost:3000
 
 ---
 
+## 用这套代码起新站
+
+换站名、换域名、换视觉起一个新站点 → **[`docs/REBRAND.md`](docs/REBRAND.md)**。
+里面逐项列了所有写死品牌/域名的位置、判定方法和收尾自检命令。
+
+要点预告：站名基本集中在 `apps/cms/src/index.ts` 的播种逻辑里（前台多数地方读 Strapi 的
+`global.siteName`，不写死）；域名在代码里只有 `apps/web/next.config.ts` 的 R2 图片域必改，
+canonical/sitemap/OG 全走 `SITE_URL` 环境变量；品牌视觉是代码画的 SVG，需要重画而非替换图片。
+
+---
+
 ## 约束与规范
 
-强约束见 [`DEVELOPMENT_CONSTRAINTS.md`](./DEVELOPMENT_CONSTRAINTS.md)：TypeScript strict、App Router（非 Pages）、PostgreSQL（生产禁 SQLite）、`@opennextjs/cloudflare`（禁 next-on-pages）、CORS 锁域名、先审后发、敏感词过滤、ICP 备案号占位、**不得抓取/复制任何站点内容**。
+强约束见 [`DEVELOPMENT_CONSTRAINTS.md`](./DEVELOPMENT_CONSTRAINTS.md)：TypeScript strict、App Router（非 Pages）、PostgreSQL（生产禁 SQLite）、CORS 锁域名、先审后发、敏感词过滤、ICP 备案号占位、**不得抓取/复制任何站点内容**。
+
+> 该文档「前台（Cloudflare）」一节已与线上现状不符（前台实为本机 PM2），节内有勘误说明。
