@@ -1,0 +1,9 @@
+{
+  "info": {
+    "name": "user",
+    "description": "",
+    "singularName": "user",
+    "pluralName": "users",
+    "displayName": "前台用户"
+  }
+}
