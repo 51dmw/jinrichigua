@@ -165,7 +165,9 @@ export default {
   async afterDelete(event: any) {
     const cached: ArticleRef | undefined = event.state?.article;
     if (cached) {
-      // 删除/下架的 URL 也要推：让搜索引擎尽快重抓并把 404 从索引里去掉。
+      // 删除/下架仍然 ping：列表页、频道页、首页的缓存都要跟着失效。
+      // 至于那条已经消失的文章 URL——前台提交前会探测存活，404 会被自动过滤掉，
+      // 不会推给 IndexNow（见 apps/web/lib/indexnow.ts 的 filterAlive）。
       await pingRevalidate(strapi, cached).catch(() => undefined);
       return;
     }

@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
   const result = await submitToIndexNow(urls, { force: body.force === true });
   console.log(
     `[indexnow] batch requested=${urls.length} submitted=${result.submitted} ` +
-      `skipped=${result.skipped} ok=${result.ok} (${result.reason})`,
+      `skipped=${result.skipped} gone=${result.gone} ok=${result.ok} (${result.reason})`,
   );
   return NextResponse.json({ ...result, requested: urls.length, now: new Date().toISOString() });
 }
