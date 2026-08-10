@@ -16,13 +16,26 @@ export async function tagMeta(slug: string, page: number): Promise<Metadata> {
   const [tag, global] = await Promise.all([getTagBySlug(slug), getGlobal()]);
   const base = `/tag/${slug}`;
   const name = tag?.name ?? slug;
+  // 标签聚合页原本只有「标签名」当标题，加上模板后缀不到 10 字，核心词覆盖太窄。
+  // 统一补吃瓜/爆料/黑料/八卦这组核心词；长度按 SEO 规范 A-2（≤60 字符，含
+  // titleTemplate 的「 | 今日吃瓜」后缀）控制，所以标签名只出现一次，不重复堆砌。
+  const fallbackTitle =
+    page > 1
+      ? `${name}吃瓜爆料黑料汇总 - 第 ${page} 页`
+      : `${name}最新吃瓜爆料 - 黑料八卦事件全记录`;
+  // 标签量大无法逐个填描述：无 tag.description 时用模板兜底，保证每个标签页都有独特 meta。
+  const baseDescription =
+    tag?.description ??
+    `今日吃瓜${name}专题，汇总${name}的最新吃瓜爆料、黑料内幕、八卦绯闻与热搜事件：` +
+      `从事件起因、时间线梳理到当事人回应与网友热议，逐条追踪${name}相关的娱乐圈动态与最新进展。` +
+      `本页按时间倒序收录全部${name}相关文章，每日更新，想第一时间知道又出了什么新瓜，收藏本页持续跟进。`;
   return resolveMetadata({
     seo: tag?.seo,
     global,
-    fallbackTitle: page > 1 ? `${name} - 第 ${page} 页` : name,
-    // 标签量大无法逐个填描述：无 tag.description 时用模板兜底，保证每个标签页都有独特 meta。
-    fallbackDescription:
-      tag?.description ?? `「${name}」相关的最新吃瓜、爆料与热点资讯，尽在今日吃瓜第一时间追踪。`,
+    fallbackTitle,
+    // 翻页描述加页码，避免第 2~5 页与首页 meta description 完全重复
+    fallbackDescription: page > 1 ? `${baseDescription}（第 ${page} 页）` : baseDescription,
+    fallbackKeywords: [name, `${name}吃瓜`, `${name}爆料`, `${name}黑料`, `${name}八卦`, '吃瓜爆料'],
     path: base,
     canonicalPath: pageHref(base, page),
   });
