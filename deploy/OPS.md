@@ -79,10 +79,16 @@ bash scripts/deploy-web.sh
 CMS **没有 CI**，改了 `apps/cms` 要重建镜像才生效：
 
 ```bash
-docker compose -f deploy/docker-compose.yml up -d --build cms
+docker compose -p jinrichigua -f deploy/docker-compose.yml up -d --build --no-deps cms
 ```
 
 只改 git 不重建镜像 = 线上没变化。后台汉化这类改动最容易踩这个坑。
+
+`-p jinrichigua` 必须带（2026-08-10 踩过）：现网容器名是 `jinrichigua-cms-1`，
+而 Compose v2 默认拿 compose 文件所在目录 `deploy` 当项目名，不带 `-p` 会另起一套
+`deploy-cms-1` + `deploy-postgres-1` + 两个空卷，现网完全不动，最后因 1337 端口被占用失败。
+清理平行栈：`docker compose -p deploy -f deploy/docker-compose.yml down`（别加 `-v`，
+`-v` 删的是卷）。`--no-deps` 保证只重建 cms，不碰 postgres/redis。
 
 ---
 

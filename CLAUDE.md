@@ -19,8 +19,12 @@
 CMS 没有 CI。只 commit 不重建 = 线上没变化。
 
 ```bash
-docker compose -f deploy/docker-compose.yml up -d --build cms
+docker compose -p jinrichigua -f deploy/docker-compose.yml up -d --build --no-deps cms
 ```
+
+`-p jinrichigua` **不能省**：现网容器属于 `jinrichigua` 项目，而 Compose v2 默认按
+compose 文件所在目录（`deploy`）取项目名——省掉就会新建一整套平行栈（新容器 + 空数据卷），
+现网纹丝不动，最后卡在 1337 端口冲突。`--no-deps` 则避免顺带重建 postgres/redis。
 
 **2. 前台发版只走 `bash scripts/deploy-web.sh`。**
 它先构建到临时目录、校验通过后才原子切换 `.next` 并重启 PM2。
