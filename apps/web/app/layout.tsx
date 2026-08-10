@@ -8,7 +8,6 @@ import { SiteFooter } from '@/components/SiteFooter';
 import { Analytics } from '@/components/Analytics';
 import { JsonLd } from '@/components/JsonLd';
 import { Logo } from '@/components/Logo';
-import { STRAPI_API_URL } from '@/lib/env';
 
 export async function generateMetadata(): Promise<Metadata> {
   const global = await getGlobal();
@@ -34,8 +33,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <meta name="format-detection" content="telephone=no" />
         {/* RSS 订阅源自动发现（阅读器/聚合识别）*/}
         <link rel="alternate" type="application/rss+xml" title={`${siteName} RSS`} href="/rss.xml" />
-        {/* 提前与跨域来源建连，加速媒体图片/统计加载（Next 会去重并提升到 <head>）*/}
-        <link rel="preconnect" href={STRAPI_API_URL} crossOrigin="" />
+        {/* 提前与跨域来源建连，加速统计脚本加载（Next 会去重并提升到 <head>）。
+            媒体图片不在此列：next/image 走同源 /_next/image 转发，浏览器不直连媒体域；
+            Strapi 也不在此列：取数全在服务端，浏览器从不连 CMS。 */}
+        {process.env.NEXT_PUBLIC_GA_ID ? (
+          <link rel="preconnect" href="https://www.googletagmanager.com" crossOrigin="" />
+        ) : null}
         {global?.yandexMetricaId ? (
           <link rel="preconnect" href="https://mc.yandex.ru" crossOrigin="" />
         ) : null}
