@@ -10,6 +10,14 @@ const STAT_UID = 'api::friend-link-daily-stat.friend-link-daily-stat';
 // 重复提交由前台的去重窗口（apps/web/lib/indexnow.ts）收敛，不会真的重复发出去。
 const ARTICLE_UID = 'api::article.article';
 const CURSOR_KEY = 'lastPublishedAt';
+const HOLD_KEY = 'holdRounds';
+/**
+ * 前台只提交探测返回 200 的 URL。若这批里有「暂时性」失败（5xx/超时），说明页面这会儿
+ * 拿不到，不是真没了 —— 保持游标让下一轮重来。但不能无限期按住：某条页面要是长期 5xx，
+ * 游标卡死会连带把它之后的新文章全挡在门外。所以最多按住 MAX_HOLD 轮（6×5min=30min），
+ * 之后强行推进并告警，宁可漏那一条也不能停掉整条管线。
+ */
+const MAX_HOLD = 6;
 /** 单轮最多补推的篇数（按 publishedAt 升序取，取不完下一轮接着来）。 */
 const SWEEP_BATCH = 200;
 /** 首次运行（没有游标）时的回看窗口，避免第一轮把全站历史都扫出来。 */
@@ -59,10 +67,29 @@ async function sweepIndexNow(strapi: any): Promise<void> {
     return;
   }
   const body: any = await res.json().catch(() => ({}));
+  const retryable = Number(body?.retryable ?? 0);
+  const held = Number((await store.get({ key: HOLD_KEY })) ?? 0);
+
+  if (retryable > 0 && held < MAX_HOLD) {
+    await store.set({ key: HOLD_KEY, value: held + 1 });
+    strapi.log.warn(
+      `[cron] IndexNow 兜底：${retryable} 条探测暂时性失败（5xx/超时），` +
+        `游标保持 ${cursor} 等下一轮重试（第 ${held + 1}/${MAX_HOLD} 轮）`,
+    );
+    return;
+  }
+  if (retryable > 0) {
+    strapi.log.warn(
+      `[cron] IndexNow 兜底：${retryable} 条连续 ${MAX_HOLD} 轮探测失败，放弃这几条并推进游标，` +
+        `以免挡住后面的新文章`,
+    );
+  }
+
+  await store.set({ key: HOLD_KEY, value: 0 });
   if (newest) await store.set({ key: CURSOR_KEY, value: newest });
   strapi.log.info(
     `[cron] IndexNow 兜底：${paths.length} 条送检，实推 ${body?.submitted ?? '?'} 条` +
-      `（去重跳过 ${body?.skipped ?? '?'}），游标 → ${newest}`,
+      `（去重跳过 ${body?.skipped ?? '?'}，非 200 过滤 ${body?.filtered ?? '?'}），游标 → ${newest}`,
   );
 }
 

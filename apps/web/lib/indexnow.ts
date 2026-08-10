@@ -35,25 +35,37 @@ export interface IndexNowResult {
   submitted: number;
   /** 命中去重窗口被跳过的条数 */
   skipped: number;
-  /** 探测到 404/410 被过滤掉的条数 */
-  gone: number;
+  /** 探测结果不是 200、因而没有提交的条数 */
+  filtered: number;
+  /**
+   * filtered 里属于「暂时性」的条数（5xx / 超时 / 连不上）。
+   * 兜底扫描看这个值决定要不要保持游标——见 apps/cms/config/cron.ts。
+   */
+  retryable: number;
 }
 
 /**
- * 提交前存活探测。
+ * 提交前存活探测：**只有 200 才提交，其余一律不提交**。
  *
  * 走本机回环而不是公网域名：绕开 Cloudflare/WAF，也省掉一圈 TLS 和 CDN 延迟。
- * 只有**确定**是 404/410 才丢弃；超时、5xx、连不上一律照推（fail-open）——
- * 前台抖一下不该变成「这篇文章永远没提交过」。
+ * 判定分三档，区别只在「要不要再来一次」：
+ *   200          → ok    提交
+ *   3xx/4xx      → skip  不提交，也不必重试（跳转说明它不是正规地址，404/410 是没了）
+ *   5xx/超时/异常 → retry 不提交，但算暂时性，交给兜底扫描下一轮重来
  */
 const PROBE_BASE = (
   process.env.INDEXNOW_PROBE_BASE ?? `http://127.0.0.1:${process.env.PORT ?? 3100}`
 ).replace(/\/$/, '');
 const PROBE_CONCURRENCY = 12;
-const PROBE_TIMEOUT_MS = 4000;
+/**
+ * 10 秒：预热过的页面只要 6~200ms，但**刚发版重启后的首次渲染要回源 Strapi**，
+ * 实测能超过 4 秒。超时定太紧会把正常文章误判成暂时性失败，白等一轮兜底。
+ */
+const PROBE_TIMEOUT_MS = 10_000;
 
-/** 确认某个 URL 已经不存在（404/410）。任何不确定的情况都返回 false = 照推。 */
-async function isGone(url: string): Promise<boolean> {
+type Verdict = 'ok' | 'skip' | 'retry';
+
+async function probeOnce(url: string): Promise<Verdict> {
   const probeUrl = url.startsWith(SITE_URL) ? `${PROBE_BASE}${url.slice(SITE_URL.length) || '/'}` : url;
   try {
     const res = await fetch(probeUrl, {
@@ -61,27 +73,43 @@ async function isGone(url: string): Promise<boolean> {
       redirect: 'manual',
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     });
-    return res.status === 404 || res.status === 410;
+    if (res.status === 200) return 'ok';
+    return res.status >= 500 ? 'retry' : 'skip';
   } catch {
-    return false;
+    return 'retry';
   }
 }
 
-/** 并发过滤掉 404/410，保持原顺序。 */
-async function filterAlive(urls: string[]): Promise<{ alive: string[]; gone: string[] }> {
-  const verdicts: boolean[] = new Array(urls.length).fill(false);
+/**
+ * 探测一条 URL。判为暂时性时**当场再试一次**：
+ * 第一次多半是冷页面在回源，第二次它已经生成好了，直接命中。
+ * 还失败才算 retry，交给兜底扫描下一轮。
+ */
+async function probe(url: string): Promise<Verdict> {
+  const first = await probeOnce(url);
+  if (first !== 'retry') return first;
+  return probeOnce(url);
+}
+
+/** 并发探测，保持原顺序分流。 */
+async function classify(
+  urls: string[],
+): Promise<{ alive: string[]; filtered: number; retryable: number }> {
+  const verdicts: Verdict[] = new Array(urls.length).fill('retry');
   let cursor = 0;
   const workers = Array.from({ length: Math.min(PROBE_CONCURRENCY, urls.length) }, async () => {
     while (cursor < urls.length) {
       const i = cursor++;
-      verdicts[i] = await isGone(urls[i]);
+      verdicts[i] = await probe(urls[i]);
     }
   });
   await Promise.all(workers);
-  const alive: string[] = [];
-  const gone: string[] = [];
-  urls.forEach((u, i) => (verdicts[i] ? gone : alive).push(u));
-  return { alive, gone };
+  const alive = urls.filter((_, i) => verdicts[i] === 'ok');
+  return {
+    alive,
+    filtered: urls.length - alive.length,
+    retryable: verdicts.filter((v) => v === 'retry').length,
+  };
 }
 
 /** 站内路径 → 绝对 URL（已是绝对地址的原样返回）。 */
@@ -124,27 +152,31 @@ export async function submitToIndexNow(
   urls: string[],
   opts: { force?: boolean } = {},
 ): Promise<IndexNowResult> {
-  if (!INDEXNOW_KEY) {
-    return { ok: false, reason: 'INDEXNOW_KEY 未配置', submitted: 0, skipped: 0, gone: 0 };
-  }
+  const empty = { submitted: 0, skipped: 0, filtered: 0, retryable: 0 };
+  if (!INDEXNOW_KEY) return { ok: false, reason: 'INDEXNOW_KEY 未配置', ...empty };
 
   const now = Date.now();
   dropExpired(now);
   const all = Array.from(new Set(urls.filter(Boolean).map(toAbsolute)));
-  if (all.length === 0) {
-    return { ok: false, reason: 'empty url list', submitted: 0, skipped: 0, gone: 0 };
-  }
+  if (all.length === 0) return { ok: false, reason: 'empty url list', ...empty };
 
   const fresh = opts.force ? all : all.filter((u) => !submittedAt.has(u));
   const skipped = all.length - fresh.length;
   if (fresh.length === 0) {
-    return { ok: true, reason: 'deduped（窗口内已提交过）', submitted: 0, skipped, gone: 0 };
+    return { ok: true, reason: 'deduped（窗口内已提交过）', ...empty, skipped };
   }
 
   // 存活探测放在去重之后：窗口内已提交过的不必再探，省一轮请求。
-  const { alive: list, gone } = await filterAlive(fresh);
+  const { alive: list, filtered, retryable } = await classify(fresh);
   if (list.length === 0) {
-    return { ok: true, reason: '全部为 404/410，已过滤', submitted: 0, skipped, gone: gone.length };
+    return {
+      ok: true,
+      reason: `无 200 可提交（过滤 ${filtered}，其中暂时性 ${retryable}）`,
+      submitted: 0,
+      skipped,
+      filtered,
+      retryable,
+    };
   }
 
   let submitted = 0;
@@ -167,6 +199,7 @@ export async function submitToIndexNow(
     reason: Array.from(new Set(reasons)).join(','),
     submitted,
     skipped,
-    gone: gone.length,
+    filtered,
+    retryable,
   };
 }

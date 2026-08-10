@@ -88,7 +88,8 @@ export async function POST(req: NextRequest) {
     // 之前文章 URL 整整没推过却无人察觉，就是因为这里静默。
     console.log(
       `[indexnow] revalidate ping article=${body.channelSlug ?? '-'}/${body.articleSlug ?? '-'} ` +
-        `submitted=${indexNow.submitted} skipped=${indexNow.skipped} gone=${indexNow.gone} ` +
+        `submitted=${indexNow.submitted} skipped=${indexNow.skipped} ` +
+        `filtered=${indexNow.filtered}(retryable=${indexNow.retryable}) ` +
         `ok=${indexNow.ok} (${indexNow.reason})`,
     );
   }
