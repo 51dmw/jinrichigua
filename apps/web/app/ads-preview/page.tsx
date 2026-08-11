@@ -3,6 +3,7 @@ import Link from 'next/link';
 import {
   AD_SLOT_CATALOG,
   type AdSlotEntry,
+  type AdSamplePageKind,
   adFormatSpec,
   adDemoSrcs,
   slotSeed,
@@ -10,7 +11,13 @@ import {
   AD_LINK_TARGET,
 } from '@/lib/adFormats';
 import { AdRotator } from '@/components/AdRotator';
-import { getAdSlot } from '@/lib/strapi';
+import {
+  getAdSlot,
+  getNavChannels,
+  getLatestArticles,
+  getPopularTags,
+  getAllAuthorSlugs,
+} from '@/lib/strapi';
 import { ADS_PLACEHOLDER, SITE_URL } from '@/lib/env';
 
 /**
@@ -31,6 +38,36 @@ const TOTAL_CREATIVES = AD_SLOT_CATALOG.reduce(
   (n, p) => n + p.slots.reduce((m, s) => m + Math.max(1, s.demo), 0),
   0,
 );
+
+/**
+ * 「查看实际页面」的真实 URL。
+ * 频道/文章/作者/标签都只有动态路由（没有 /news、/author、/tag 这类索引页），
+ * 所以现查一个真实 slug 拼出来；查不到就不给链接，而不是给一个 404。
+ */
+async function resolveSampleLinks(): Promise<Partial<Record<AdSamplePageKind, string>>> {
+  const [channels, latest, tags, authorSlugs] = await Promise.all([
+    getNavChannels(),
+    getLatestArticles(1),
+    getPopularTags(1),
+    getAllAuthorSlugs(),
+  ]);
+  const channelSlug = channels[0]?.slug;
+  const article = latest[0];
+  const tagSlug = tags[0]?.slug;
+  const authorSlug = authorSlugs[0];
+
+  return {
+    home: '/',
+    hot: '/hot',
+    search: '/search',
+    ...(channelSlug ? { channel: `/${channelSlug}` } : {}),
+    ...(article?.slug && article.channel?.slug
+      ? { article: `/${article.channel.slug}/${article.slug}` }
+      : {}),
+    ...(tagSlug ? { tag: `/tag/${tagSlug}` } : {}),
+    ...(authorSlug ? { author: `/author/${authorSlug}` } : {}),
+  };
+}
 
 /** 单个位置卡片：上方按真实宽高比轮播，下方平铺该位置的全部展位图。 */
 async function SlotCard({ entry }: { entry: AdSlotEntry }) {
@@ -82,11 +119,7 @@ async function SlotCard({ entry }: { entry: AdSlotEntry }) {
         aria-label={`广告展位（示例）：${slotKey}`}
       >
         <div className="relative w-full" style={{ aspectRatio: format.ratio }}>
-          <AdRotator
-            srcs={srcs}
-            alt={`广告展位示例 - ${slotKey}`}
-            seed={slotSeed(slotKey)}
-          />
+          <AdRotator srcs={srcs} alt={`广告展位示例 - ${slotKey}`} seed={slotSeed(slotKey)} />
           <span className="absolute bottom-1 right-1 rounded bg-black/40 px-1 text-[10px] text-white">
             广告
           </span>
@@ -121,7 +154,8 @@ async function SlotCard({ entry }: { entry: AdSlotEntry }) {
   );
 }
 
-export default function AdsPreviewPage() {
+export default async function AdsPreviewPage() {
+  const sampleLinks = await resolveSampleLinks();
   return (
     <div>
       <h1 className="mb-1 text-xl font-bold text-gray-900">广告位总览（演示）</h1>
@@ -140,24 +174,29 @@ export default function AdsPreviewPage() {
       ) : null}
 
       <div className="space-y-6">
-        {AD_SLOT_CATALOG.map((group) => (
-          <section key={group.page}>
-            <h2 className="mb-2 flex items-baseline gap-2 border-b border-gray-200 pb-1 text-base font-bold text-gray-900">
-              {group.page}
-              <Link href={group.sample} className="text-xs font-normal text-brand">
-                查看实际页面 {group.sample}
-              </Link>
-              <span className="text-xs font-normal text-gray-400">
-                {group.slots.length} 个位置
-              </span>
-            </h2>
-            <div className="grid items-start gap-3 sm:grid-cols-2">
-              {group.slots.map((s) => (
-                <SlotCard key={s.key} entry={s} />
-              ))}
-            </div>
-          </section>
-        ))}
+        {AD_SLOT_CATALOG.map((group) => {
+          const sample = sampleLinks[group.sampleKind];
+          return (
+            <section key={group.page}>
+              <h2 className="mb-2 flex items-baseline gap-2 border-b border-gray-200 pb-1 text-base font-bold text-gray-900">
+                {group.page}
+                {sample ? (
+                  <Link href={sample} className="text-xs font-normal text-brand">
+                    查看实际页面 {sample}
+                  </Link>
+                ) : null}
+                <span className="text-xs font-normal text-gray-400">
+                  {group.slots.length} 个位置
+                </span>
+              </h2>
+              <div className="grid items-start gap-3 sm:grid-cols-2">
+                {group.slots.map((s) => (
+                  <SlotCard key={s.key} entry={s} />
+                ))}
+              </div>
+            </section>
+          );
+        })}
       </div>
     </div>
   );

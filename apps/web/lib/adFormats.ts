@@ -96,18 +96,25 @@ export interface AdSlotEntry {
   demo: number;
 }
 
+/**
+ * 总览页「查看实际页面」的链接类型。
+ * 只记类型不记路径：频道/文章/作者/标签都是动态 slug，写死路径必然 404
+ * （站内没有 /news、/author、/tag 这类索引页），运行时现查一个真实 slug 拼。
+ */
+export type AdSamplePageKind = 'home' | 'channel' | 'article' | 'hot' | 'author' | 'tag' | 'search';
+
 export interface AdSlotPage {
   /** 页面名 */
   page: string;
-  /** 该页面的一个可访问示例路径（总览页给链接用） */
-  sample: string;
+  /** 该页面的示例链接类型（总览页据此解析出一个真实可访问的 URL） */
+  sampleKind: AdSamplePageKind;
   slots: AdSlotEntry[];
 }
 
 export const AD_SLOT_CATALOG: AdSlotPage[] = [
   {
     page: '首页',
-    sample: '/',
+    sampleKind: 'home',
     slots: [
       { key: 'home-top', format: 'leaderboard', where: '导航下方首屏横幅', demo: 3 },
       { key: 'home-feed-1', format: 'in-feed', where: '信息流第 1 屏内嵌', demo: 2 },
@@ -117,7 +124,7 @@ export const AD_SLOT_CATALOG: AdSlotPage[] = [
   },
   {
     page: '频道页',
-    sample: '/news',
+    sampleKind: 'channel',
     slots: [
       { key: 'channel-top', format: 'leaderboard', where: '频道标题下方横幅', demo: 3 },
       { key: 'channel-mid', format: 'in-feed', where: '列表第 6 条后内嵌', demo: 2 },
@@ -127,7 +134,7 @@ export const AD_SLOT_CATALOG: AdSlotPage[] = [
   },
   {
     page: '文章页',
-    sample: '/news',
+    sampleKind: 'article',
     slots: [
       { key: 'article-inline', format: 'in-feed', where: '正文中部段落间', demo: 3 },
       { key: 'article-bottom', format: 'leaderboard', where: '正文末尾（相关阅读前）', demo: 2 },
@@ -138,7 +145,7 @@ export const AD_SLOT_CATALOG: AdSlotPage[] = [
   },
   {
     page: '热榜页',
-    sample: '/hot',
+    sampleKind: 'hot',
     slots: [
       { key: 'hot-top', format: 'leaderboard', where: '榜单上方横幅', demo: 2 },
       { key: 'hot-aside', format: 'rectangle', where: '右侧栏标签云上方', demo: 3 },
@@ -146,17 +153,17 @@ export const AD_SLOT_CATALOG: AdSlotPage[] = [
   },
   {
     page: '作者页',
-    sample: '/author',
+    sampleKind: 'author',
     slots: [{ key: 'author-aside', format: 'rectangle', where: '右侧栏', demo: 2 }],
   },
   {
     page: '标签页',
-    sample: '/tag',
+    sampleKind: 'tag',
     slots: [{ key: 'tag-aside', format: 'rectangle', where: '右侧栏', demo: 2 }],
   },
   {
     page: '搜索页',
-    sample: '/search',
+    sampleKind: 'search',
     slots: [
       { key: 'search-top', format: 'leaderboard', where: '搜索框下方横幅', demo: 2 },
       { key: 'search-feed', format: 'in-feed', where: '结果第 6 条后内嵌', demo: 2 },
