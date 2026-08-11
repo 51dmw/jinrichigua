@@ -32,9 +32,10 @@ export const TURNSTILE_SITE_KEY = process.env.TURNSTILE_SITE_KEY ?? '';
 export const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY ?? '';
 
 /**
- * 广告位占位图模式（§M6 预览/验收用）。
- * 开启后，所有无创意的广告位渲染「占位框」（按 format 标准尺寸 + 标注 key/尺寸），
- * 方便整站可视化广告布局。生产留空/0 → 仍是「无创意不渲染」。
+ * 广告位展位图模式（§M6 预览/验收用）。
+ * 开启后，所有无创意的广告位渲染「演示展位图」（按 format 标准尺寸现生成 SVG，
+ * 同位置多张则轮播，点击跳 SITE_URL），方便整站可视化广告布局。
+ * 生产留空/0 → 仍是「无创意不渲染」。总览页 /ads-preview 不受此开关影响。
  */
 export const ADS_PLACEHOLDER = ['1', 'true', 'on'].includes(
   (process.env.ADS_PLACEHOLDER ?? '').toLowerCase(),

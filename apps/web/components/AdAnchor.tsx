@@ -1,10 +1,11 @@
 import { getAdSlot, mediaUrl, imageAlt } from '@/lib/strapi';
 import { AdAnchorBar } from './AdAnchorBar';
-import { ADS_PLACEHOLDER } from '@/lib/env';
+import { adDemoSrcs, slotSeed, formatForSlot } from '@/lib/adFormats';
+import { ADS_PLACEHOLDER, SITE_URL } from '@/lib/env';
 
 /**
  * 移动端悬浮广告位（服务端取投放 → 客户端悬浮条）。
- * 有创意渲染真实广告；无创意时占位图模式渲染占位条，否则不渲染。
+ * 有创意渲染真实广告；无创意时占位图模式渲染展位图演示（多张轮播，跳主域名），否则不渲染。
  */
 export async function AdAnchor({ slotKey }: { slotKey: string }) {
   const slot = await getAdSlot(slotKey);
@@ -23,5 +24,13 @@ export async function AdAnchor({ slotKey }: { slotKey: string }) {
   }
 
   if (!ADS_PLACEHOLDER) return null;
-  return <AdAnchorBar placeholder label={`广告位 · 移动悬浮 320×50 · ${slotKey}`} />;
+  return (
+    <AdAnchorBar
+      href={SITE_URL}
+      title={slotKey}
+      alt={`广告展位示例 - ${slotKey}`}
+      demoSrcs={adDemoSrcs(slotKey, formatForSlot(slotKey, slot?.format))}
+      demoSeed={slotSeed(slotKey)}
+    />
+  );
 }

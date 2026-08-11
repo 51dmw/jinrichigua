@@ -83,32 +83,130 @@ export function adFormatSpec(format?: AdFormat | null): AdFormatSpec {
 }
 
 /**
- * 全站广告位 key → format 映射（与 CMS bootstrap 播种一致）。
+ * 全站广告位目录 —— 位置的唯一来源。
+ * 一个 page 下多个位置（多位置），每个位置可排多张演示展位图（同位置多图，轮播）。
+ * 新增/挪动广告位只改这里：AD_SLOTS 与 /ads-preview 总览页都从它派生。
+ */
+export interface AdSlotEntry {
+  key: string;
+  format: AdFormat;
+  /** 位置说明（后台/总览页可读） */
+  where: string;
+  /** 演示展位图张数（>1 则前台轮播） */
+  demo: number;
+}
+
+export interface AdSlotPage {
+  /** 页面名 */
+  page: string;
+  /** 该页面的一个可访问示例路径（总览页给链接用） */
+  sample: string;
+  slots: AdSlotEntry[];
+}
+
+export const AD_SLOT_CATALOG: AdSlotPage[] = [
+  {
+    page: '首页',
+    sample: '/',
+    slots: [
+      { key: 'home-top', format: 'leaderboard', where: '导航下方首屏横幅', demo: 3 },
+      { key: 'home-feed-1', format: 'in-feed', where: '信息流第 1 屏内嵌', demo: 2 },
+      { key: 'home-feed-2', format: 'in-feed', where: '信息流第 3 条后内嵌', demo: 2 },
+      { key: 'home-anchor', format: 'anchor', where: '移动端底部悬浮条', demo: 2 },
+    ],
+  },
+  {
+    page: '频道页',
+    sample: '/news',
+    slots: [
+      { key: 'channel-top', format: 'leaderboard', where: '频道标题下方横幅', demo: 3 },
+      { key: 'channel-mid', format: 'in-feed', where: '列表第 6 条后内嵌', demo: 2 },
+      { key: 'channel-aside', format: 'rectangle', where: '右侧栏「频道热门」下方', demo: 3 },
+      { key: 'channel-anchor', format: 'anchor', where: '移动端底部悬浮条', demo: 2 },
+    ],
+  },
+  {
+    page: '文章页',
+    sample: '/news',
+    slots: [
+      { key: 'article-inline', format: 'in-feed', where: '正文中部段落间', demo: 3 },
+      { key: 'article-bottom', format: 'leaderboard', where: '正文末尾（相关阅读前）', demo: 2 },
+      { key: 'article-aside', format: 'rectangle', where: '右侧栏「频道热门」下方', demo: 3 },
+      { key: 'article-aside-2', format: 'half-page', where: '右侧栏「频道最新」下方（仅桌面）', demo: 2 },
+      { key: 'article-anchor', format: 'anchor', where: '移动端底部悬浮条', demo: 2 },
+    ],
+  },
+  {
+    page: '热榜页',
+    sample: '/hot',
+    slots: [
+      { key: 'hot-top', format: 'leaderboard', where: '榜单上方横幅', demo: 2 },
+      { key: 'hot-aside', format: 'rectangle', where: '右侧栏标签云上方', demo: 3 },
+    ],
+  },
+  {
+    page: '作者页',
+    sample: '/author',
+    slots: [{ key: 'author-aside', format: 'rectangle', where: '右侧栏', demo: 2 }],
+  },
+  {
+    page: '标签页',
+    sample: '/tag',
+    slots: [{ key: 'tag-aside', format: 'rectangle', where: '右侧栏', demo: 2 }],
+  },
+  {
+    page: '搜索页',
+    sample: '/search',
+    slots: [
+      { key: 'search-top', format: 'leaderboard', where: '搜索框下方横幅', demo: 2 },
+      { key: 'search-feed', format: 'in-feed', where: '结果第 6 条后内嵌', demo: 2 },
+    ],
+  },
+];
+
+/** 全站广告位 key → 目录条目（与 CMS bootstrap 播种的 key 一致）。 */
+export const AD_SLOT_ENTRIES: Record<string, AdSlotEntry> = Object.fromEntries(
+  AD_SLOT_CATALOG.flatMap((p) => p.slots.map((s) => [s.key, s])),
+);
+
+/**
+ * 全站广告位 key → format 映射（由目录派生）。
  * 占位图模式下据此推断尺寸，无需查库。
  */
-export const AD_SLOTS: Record<string, AdFormat> = {
-  'home-top': 'leaderboard',
-  'home-feed-1': 'in-feed',
-  'home-feed-2': 'in-feed',
-  'home-anchor': 'anchor',
-  'channel-top': 'leaderboard',
-  'channel-mid': 'in-feed',
-  'channel-aside': 'rectangle',
-  'channel-anchor': 'anchor',
-  'article-inline': 'in-feed',
-  'article-bottom': 'leaderboard',
-  'article-aside': 'rectangle',
-  'article-aside-2': 'half-page',
-  'article-anchor': 'anchor',
-  'hot-top': 'leaderboard',
-  'hot-aside': 'rectangle',
-  'author-aside': 'rectangle',
-  'tag-aside': 'rectangle',
-  'search-top': 'leaderboard',
-  'search-feed': 'in-feed',
-};
+export const AD_SLOTS: Record<string, AdFormat> = Object.fromEntries(
+  Object.entries(AD_SLOT_ENTRIES).map(([k, s]) => [k, s.format]),
+);
 
 /** 取某广告位的 format：优先后台值，回退静态映射，再回退 leaderboard。 */
 export function formatForSlot(slotKey: string, dbFormat?: AdFormat | null): AdFormat {
   return (dbFormat ?? AD_SLOTS[slotKey] ?? 'leaderboard') as AdFormat;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 演示展位图（无真实创意时的可视化预览）
+// ─────────────────────────────────────────────────────────────
+
+/** 未登记的位置默认排几张展位图 */
+export const AD_DEMO_DEFAULT_COUNT = 2;
+
+/** 单张展位图 URL（SVG 由 /ads/placeholder 路由按尺寸现生成，零素材）。 */
+export function adPlaceholderSrc(slotKey: string, variant: number, format?: AdFormat): string {
+  const q = new URLSearchParams({ slot: slotKey, v: String(variant) });
+  if (format) q.set('format', format);
+  return `/ads/placeholder?${q.toString()}`;
+}
+
+/** 位置 key → 稳定小整数，用于轮播错峰（服务端与客户端结果必须一致）。 */
+export function slotSeed(slotKey: string): number {
+  let n = 0;
+  for (let i = 0; i < slotKey.length; i += 1) n = (n * 31 + slotKey.charCodeAt(i)) % 997;
+  return n;
+}
+
+/** 某位置的全部展位图（长度 >1 时前台轮播，即「同位置多展示图」）。 */
+export function adDemoSrcs(slotKey: string, format?: AdFormat | null): string[] {
+  const entry = AD_SLOT_ENTRIES[slotKey];
+  const n = Math.max(1, entry?.demo ?? AD_DEMO_DEFAULT_COUNT);
+  const fmt = (format ?? entry?.format) as AdFormat | undefined;
+  return Array.from({ length: n }, (_, i) => adPlaceholderSrc(slotKey, i + 1, fmt));
 }

@@ -8,8 +8,8 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        // 站内搜索结果不收录（§4 避免重复/低质页）
-        disallow: ['/api/', '/search'],
+        // 站内搜索结果不收录（§4 避免重复/低质页）；广告展位演示同理（全是占位素材）
+        disallow: ['/api/', '/search', '/ads-preview', '/ads/'],
       },
       // 有害/激进爬虫全屏蔽：Bytespider 吃带宽，MJ12bot/DotBot 纯外链采集，对本站 SEO 无贡献。
       {
