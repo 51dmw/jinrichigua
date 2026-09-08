@@ -809,11 +809,20 @@ const FIELD_LABELS_OVERRIDE: Record<string, Record<string, string>> = {
   'components::layout.home-block': { title: '区块标题', channel: '频道' },
   // 日统计里 name 指「站点名称」（友链快照），区别于通用「名称」。
   'api::friend-link-daily-stat.friend-link-daily-stat': { name: '站点名称' },
+  // 友链本体：url 是唯一起作用的字段，domain 只是备注——标签上把主次分开，避免录入时歧义。
+  'api::friend-link.friend-link': { url: '跳转地址', domain: '域名备注' },
+};
+// 编辑页字段下方的说明文字（Strapi metadatas.edit.description），按 uid 精确匹配。
+const FIELD_HINTS: Record<string, Record<string, string>> = {
+  'api::friend-link.friend-link': {
+    url: '必填。友链实际跳转目标，须以 http:// 或 https:// 开头。',
+    domain: '可选。仅用于日统计快照和悬停提示，不参与跳转与统计。',
+  },
 };
 
 async function ensureChineseFieldLabels(strapi: StrapiApp) {
   const store = strapi.store({ type: 'type', name: 'setup' });
-  if (await store.get({ key: 'cnFieldLabelsV4HasRun' })) return;
+  if (await store.get({ key: 'cnFieldLabelsV5HasRun' })) return;
 
   const PREFIXES = [
     'plugin_content_manager_configuration_content_types::api::', // 仅本项目内容类型
@@ -834,12 +843,18 @@ async function ensureChineseFieldLabels(strapi: StrapiApp) {
         .replace('plugin_content_manager_configuration_content_types::', '')
         .replace('plugin_content_manager_configuration_components::', 'components::');
       const override = FIELD_LABELS_OVERRIDE[uid] ?? {};
+      const hints = FIELD_HINTS[uid] ?? {};
       const metas = cfg.metadatas ?? {};
       let changed = false;
       for (const field of Object.keys(metas)) {
+        const m = metas[field];
+        const hint = hints[field];
+        if (hint && m?.edit && m.edit.description !== hint) {
+          m.edit.description = hint;
+          changed = true;
+        }
         const label = override[field] ?? FIELD_LABELS_BASE[field];
         if (!label) continue;
-        const m = metas[field];
         if (m?.edit && m.edit.label !== label) {
           m.edit.label = label;
           changed = true;
@@ -855,7 +870,7 @@ async function ensureChineseFieldLabels(strapi: StrapiApp) {
       }
     }
   }
-  await store.set({ key: 'cnFieldLabelsV4HasRun', value: true });
+  await store.set({ key: 'cnFieldLabelsV5HasRun', value: true });
   strapi.log.info(`[bootstrap] 已应用后台字段中文标签（更新 ${touched} 个配置）`);
 }
 
