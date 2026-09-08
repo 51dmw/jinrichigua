@@ -62,7 +62,8 @@ const LIMIT = Number(arg('limit', 5));
 const DRY = argv.includes('--dry-run');
 // 把后台「热榜二创配置」的 prompt 强制刷成脚本内置新版（旧值备份进 note 字段）
 const UPGRADE_PROMPT = argv.includes('--upgrade-prompt');
-// 只跑站内主题盘点补位（跳过热榜）——手动补量或验证补位逻辑时用
+// 只跑站内主题盘点补位（跳过热榜）——手动验证补位逻辑时用。
+// 补位盘点默认不再自动触发（见 3b），这是唯一能让它跑起来的入口。
 const FILL_ONLY = argv.includes('--fill-only');
 // 自动发布：默认开（.env AUTO_PUBLISH=0 或 --draft 关闭）；命中敏感词的文章仍留草稿人工审核
 const AUTO_PUBLISH = !argv.includes('--draft') && (process.env.AUTO_PUBLISH ?? '1') !== '0';
@@ -931,8 +932,10 @@ function pickStyle(sel, state, usedThisRun) {
 
 // ---------- 站内主题补位选题 ----------
 // 热榜去重后新话题不够时的兜底：把站内同标签的多篇已发文章聚合成一篇盘点。
-// 刻意不做「换壳重写」（p112 的做法，已判定不采纳——那是站内重复内容）；
-// 盘点是真正的新内容：新的聚合视角 + 天然带一批指向成员文章的内链。
+// 刻意不做「换壳重写」（p112 的做法，已判定不采纳——那是站内重复内容）。
+// 2026-09-08 起默认关闭，只在 --fill-only 时跑：实际产出与「换壳重写」没有本质区别——
+// 会把同一轮刚发的文章当成员再讲一遍（/star/jiankang-sanjian 复述了 4 小时前的
+// /star/zhengpeipei-juannao），且「盘点」「辟谣」「通稿」这类体裁标签也会被当主题盘。
 const FILL_MIN_GROUP = 3;      // 同一标签+同一频道下至少几篇才够盘
 const FILL_COOLDOWN_DAYS = 7;  // 同一标签多少天内不重复盘
 const FILL_MAX_CHANNELS = 5;   // 标签跨频道数超过它 → 判为泛标签，盘出来会是大杂烩
@@ -1214,8 +1217,8 @@ async function main() {
     console.log('[dedup] 热榜无新话题');
   }
 
-  // 3b. 热榜不够 → 用站内同主题文章聚合成盘点补位
-  const fills = await buildFillPicks(LIMIT - picks.length, state);
+  // 3b. 站内盘点补位：默认关闭，热榜不够就少发几篇（理由见 buildFillPicks 上方注释）
+  const fills = FILL_ONLY ? await buildFillPicks(LIMIT - picks.length, state) : [];
   if (fills.length) {
     console.log(`[fill] 热榜缺 ${LIMIT - picks.length} 篇，补位站内主题盘点：${fills.map((f) => f.tag).join(' / ')}`);
     picks = picks.concat(fills);
