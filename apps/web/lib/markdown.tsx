@@ -18,6 +18,17 @@ import Link from 'next/link';
 /** 站内路径：/ 开头，只允许字母数字连字符斜杠下划线 */
 const INTERNAL_PATH = /^\/[\w\-/]*$/;
 const EXTERNAL_URL = /^https?:\/\/[^\s]+$/i;
+/** 例外放行 dofollow 的外链域名（热榜管线文末导流，scripts/hot-sync/index.mjs appendOutbound） */
+const DOFOLLOW_HOSTS = new Set(['jrcg365.com']);
+
+function externalRel(href: string): string {
+  try {
+    if (DOFOLLOW_HOSTS.has(new URL(href).hostname)) return 'noopener noreferrer';
+  } catch {
+    // 解析失败按普通外链处理
+  }
+  return 'nofollow noopener noreferrer';
+}
 
 export function renderArticleMarkdown(md: string): ReactNode[] {
   const lines = String(md ?? '').split('\n');
@@ -97,12 +108,12 @@ function inline(text: string, keyBase: string): ReactNode[] {
           </Link>,
         );
       } else if (EXTERNAL_URL.test(href)) {
-        // 外链一律 nofollow，防权重外泄（SEO 规范 p045）
+        // 外链默认 nofollow，防权重外泄（SEO 规范 p045）；DOFOLLOW_HOSTS 例外
         nodes.push(
           <a
             key={`${keyBase}-a${n}`}
             href={href}
-            rel="nofollow noopener noreferrer"
+            rel={externalRel(href)}
             target="_blank"
             className="text-brand underline"
           >

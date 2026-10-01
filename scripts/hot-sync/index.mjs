@@ -894,6 +894,33 @@ function sanitizeLinks(content, candidates) {
   return { content: out, forged };
 }
 
+// 文末导流到 jrcg365.com。每篇只随机抽 2~3 句：同域同锚文本整段堆 8~10 条、每天几十篇，
+// 容易被判成链接农场。前台对该域放行 dofollow（apps/web/lib/markdown.tsx 的 DOFOLLOW_HOSTS）。
+const OUTBOUND_URL = 'https://jrcg365.com/';
+const OUTBOUND_LINES = [
+  '更多热点爆料与实时更新，可继续查看👉👉 [今日吃瓜网](URL)',
+  '想看更多同类内容，可以进入👉👉 [今日吃瓜网](URL) 获取最新整理。',
+  '本篇内容将持续关注，更多后续进展可前往👉👉 [今日吃瓜网](URL)',
+  '更多热门话题、网红动态与娱乐八卦，推荐访问👉👉 [今日吃瓜](URL)',
+  '如果你想继续浏览最新吃瓜合集，可以点击👉👉 [今日吃瓜](URL)',
+  '相关内容会持续更新，更多完整信息可查看👉👉 [今日吃瓜网](URL)',
+  '想第一时间掌握更多热门事件，可以收藏👉👉 [今日吃瓜网](URL)',
+  '更多吃瓜内容、爆料合集与实时更新，尽在👉👉 [今日吃瓜网](URL)',
+];
+
+function appendOutbound(content) {
+  const c = String(content || '');
+  if (c.includes(OUTBOUND_URL)) return c;
+  const pool = [...OUTBOUND_LINES];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const n = 2 + Math.floor(Math.random() * 2);
+  // 每句单独成段：渲染器按行出 <p>，两句挤一行就成了一个段落
+  return `${c}\n\n${pool.slice(0, n).map((l) => l.replace('(URL)', `(${OUTBOUND_URL})`)).join('\n\n')}`;
+}
+
 function lintStyle(art) {
   const v = [];
   const c = String(art.content || '');
@@ -1415,6 +1442,9 @@ async function main() {
           }
         }
       }
+
+      // 文末导流外链：放在配图插入之后，免得多出的段落把配图位置往后推
+      art.content = appendOutbound(art.content);
 
       // 自动发布仅限「未命中敏感词 + 频道映射成功」的文章；否则留草稿 pending 人工审
       const publish = AUTO_PUBLISH && !hit.length && !!channel;
