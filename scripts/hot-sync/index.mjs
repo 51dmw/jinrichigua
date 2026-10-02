@@ -894,9 +894,11 @@ function sanitizeLinks(content, candidates) {
   return { content: out, forged };
 }
 
-// 文末导流到 jrcg365.com。每篇只随机抽 2~3 句：同域同锚文本整段堆 8~10 条、每天几十篇，
-// 容易被判成链接农场。前台对该域放行 dofollow（apps/web/lib/markdown.tsx 的 DOFOLLOW_HOSTS）。
+// 文末导流到 jrcg365.com。规则：每个自然日（北京时间）只有最先发布的 OUTBOUND_DAILY_CAP 篇
+// 带导流，每篇只随机挂 1 句；草稿不挂。同域同锚文本每篇都堆、每天几十篇，容易被判成链接农场。
+// 前台对该域放行 dofollow（apps/web/lib/markdown.tsx 的 DOFOLLOW_HOSTS）。
 const OUTBOUND_URL = 'https://jrcg365.com/';
+const OUTBOUND_DAILY_CAP = 8;
 const OUTBOUND_LINES = [
   '更多热点爆料与实时更新，可继续查看👉👉 [今日吃瓜网](URL)',
   '想看更多同类内容，可以进入👉👉 [今日吃瓜网](URL) 获取最新整理。',
@@ -908,17 +910,28 @@ const OUTBOUND_LINES = [
   '更多吃瓜内容、爆料合集与实时更新，尽在👉👉 [今日吃瓜网](URL)',
 ];
 
+// 今天（北京时间 0 点起）还能挂几篇。按已发布正文里是否含该域计数，所以手工发的带链文章也算额度。
+// 查询失败按 0 处理：宁可当天少挂，也不因计数失灵每篇都挂。
+async function fetchOutboundQuota() {
+  const dayStart = new Date(Math.floor((Date.now() + 8 * 3600e3) / 86400e3) * 86400e3 - 8 * 3600e3);
+  try {
+    const res = await strapi('/articles?status=published&pagination[pageSize]=1&fields[0]=title'
+      + `&filters[publishedAt][$gte]=${dayStart.toISOString()}`
+      + `&filters[content][$contains]=${encodeURIComponent('jrcg365.com')}`);
+    const used = Number(res?.meta?.pagination?.total ?? NaN);
+    if (!Number.isFinite(used)) throw new Error('no pagination.total');
+    return Math.max(0, OUTBOUND_DAILY_CAP - used);
+  } catch (e) {
+    console.warn(`[outbound] 今日导流额度查询失败，本轮不挂：${e.message}`);
+    return 0;
+  }
+}
+
 function appendOutbound(content) {
   const c = String(content || '');
   if (c.includes(OUTBOUND_URL)) return c;
-  const pool = [...OUTBOUND_LINES];
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-  const n = 2 + Math.floor(Math.random() * 2);
-  // 每句单独成段：渲染器按行出 <p>，两句挤一行就成了一个段落
-  return `${c}\n\n${pool.slice(0, n).map((l) => l.replace('(URL)', `(${OUTBOUND_URL})`)).join('\n\n')}`;
+  const line = OUTBOUND_LINES[Math.floor(Math.random() * OUTBOUND_LINES.length)];
+  return `${c}\n\n${line.replace('(URL)', `(${OUTBOUND_URL})`)}`;
 }
 
 function lintStyle(art) {
@@ -1278,6 +1291,8 @@ async function main() {
   // 5. 逐选题生成 + 入库（一篇一体裁，轮换 + 最近写法作为动态禁令）
   const recentSignals = await fetchRecentSignals(20);
   const usedStyles = new Set();
+  let outboundLeft = DRY ? 0 : await fetchOutboundQuota();
+  console.log(`[outbound] 今日导流剩余额度 ${outboundLeft}/${OUTBOUND_DAILY_CAP}`);
   const results = [];
   for (const sel of picks) {
     // 补位选题的素材是站内文章本身；热榜选题的素材是榜单条目
@@ -1443,11 +1458,15 @@ async function main() {
         }
       }
 
-      // 文末导流外链：放在配图插入之后，免得多出的段落把配图位置往后推
-      art.content = appendOutbound(art.content);
-
       // 自动发布仅限「未命中敏感词 + 频道映射成功」的文章；否则留草稿 pending 人工审
       const publish = AUTO_PUBLISH && !hit.length && !!channel;
+
+      // 文末导流外链：只给直接发布的文章、占当天额度。放在配图插入之后，免得多出的段落把配图位置往后推
+      if (publish && outboundLeft > 0) {
+        art.content = appendOutbound(art.content);
+        outboundLeft -= 1;
+        console.log(`[outbound] 「${sel.topic}」挂导流 1 句，今日剩余 ${outboundLeft}`);
+      }
       const data = {
         title: art.title, slug, summary: (art.summary || '').slice(0, 300), content: art.content,
         cover: coverId ?? undefined,
