@@ -1629,18 +1629,25 @@ async function main() {
           );
         }
 
-        // 正文配图（p045：每 500~800 字一张）：把没用作封面的素材图插到正文中部。
-        // 素材没有多余图片就跳过——不硬凑，宁可少一张也不放无关图。
-        const spare = refs.map((r) => r.cover).filter((u) => u && u !== coverSrc);
-        if (spare.length) {
-          const media = await uploadMedia(spare[0], `${slug}-inline`);
-          if (media?.url) {
-            const blocks = art.content.split('\n').filter((l) => l.trim());
-            const at = Math.max(2, Math.floor(blocks.length / 2));
-            blocks.splice(at, 0, `![${art.title}](${media.url})`);
-            art.content = blocks.join('\n\n');
-            console.log(`[img] 「${sel.topic}」正文插图 1 张`);
-          }
+        // 正文配图（p045：每 500~800 字一张）：把没用作封面的素材图均匀插进正文，最多 MAX_INLINE_IMAGES 张。
+        // 素材没有多余图片就跳过——不硬凑，宁可少一张也不放无关图；纯文本素材照常发。
+        const MAX_INLINE_IMAGES = 3;
+        const blocks = art.content.split('\n').filter((l) => l.trim());
+        // 每张图至少隔 2 段，短文少放，免得几张图挤成一串
+        const cap = Math.min(MAX_INLINE_IMAGES, Math.max(1, Math.floor((blocks.length - 2) / 2)));
+        const spare = [...new Set(refs.map((r) => r.cover).filter((u) => u && u !== coverSrc))];
+        const urls = [];
+        for (const u of spare) {
+          if (urls.length >= cap) break;
+          const media = await uploadMedia(u, `${slug}-inline-${urls.length + 1}`);
+          if (media?.url) urls.push(media.url);
+        }
+        if (urls.length) {
+          // 第 i 张放在 (i+1)/(n+1) 处，不早于第 2 段；从后往前插，前面的下标不受影响
+          const at = urls.map((_, i) => Math.max(2, Math.floor((blocks.length * (i + 1)) / (urls.length + 1))));
+          for (let i = urls.length - 1; i >= 0; i--) blocks.splice(at[i], 0, `![${art.title}](${urls[i]})`);
+          art.content = blocks.join('\n\n');
+          console.log(`[img] 「${sel.topic}」正文插图 ${urls.length} 张`);
         }
       }
 
