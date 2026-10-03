@@ -61,7 +61,8 @@ async function api(path, opts = {}) {
 
 async function fetchAll(path, extra = '') {
   const out = [];
-  for (let page = 1; page <= 20; page++) {
+  // 按 pageCount 翻到底；200 页只是防死循环的保险。原先写死 20 页，已发布过 2000 篇后最老的一批永远扫不到。
+  for (let page = 1; page <= 200; page++) {
     const r = await api(`${path}?pagination[page]=${page}&pagination[pageSize]=100${extra}`);
     out.push(...(r.data || []));
     if (page >= (r.meta?.pagination?.pageCount || 1)) break;
