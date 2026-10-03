@@ -70,7 +70,7 @@ const UPGRADE_PROMPT = argv.includes('--upgrade-prompt');
 // 只跑站内主题盘点补位（跳过热榜）——手动验证补位逻辑时用。
 // 补位盘点默认不再自动触发（见 3b），这是唯一能让它跑起来的入口。
 const FILL_ONLY = argv.includes('--fill-only');
-// 自动发布：默认开（.env AUTO_PUBLISH=0 或 --draft 关闭）；命中敏感词的文章仍留草稿人工审核
+// 自动发布：默认开（.env AUTO_PUBLISH=0 或 --draft 关闭）；正文含表格的留草稿人工审核；命中敏感词的改写一次，仍命中则放弃
 const AUTO_PUBLISH = !argv.includes('--draft') && (process.env.AUTO_PUBLISH ?? '1') !== '0';
 const BACKEND = arg('backend', CFG.backend);
 const SOURCE_KEYS = arg('sources', 'weibo,baidu,douyin,toutiao,zhihu,qqnews,ifengent,ifengmov').split(',').map((s) => s.trim());
@@ -970,8 +970,8 @@ function lintSeo(art, style) {
   if (heads < 2) v.push(`小标题不足（${heads} 个，需 ≥2）`);
   const links = [...c.matchAll(/\]\((\/[^)]+)\)/g)].length;
   if (links < 2) v.push(`站内链接不足（${links} 条，需 2~3）`);
-  const d = String(art.seo?.metaDescription || '');
-  if (d.length < 120) v.push(`metaDescription 过短（${d.length} 字，需 120~160）`);
+  // metaDescription 不在这里查：模型初稿几乎篇篇偏短，放这里会让每篇都整篇重写一次（调用量翻倍），
+  // 改由 fixMetaDescription 单独补写这一个字段。
   const kw = String(art.seo?.keywords || '').split(/[,，]/).map((s) => s.trim()).filter(Boolean).length;
   if (kw < 3 || kw > 5) v.push(`keywords 数量 ${kw}（需 3~5）`);
   // FAQ 按「结构」检测而不是按标题措辞——提示词特意要求换着叫（「读者最关心的几件事」等），
@@ -982,6 +982,53 @@ function lintSeo(art, style) {
     if (qs < 3) v.push(`FAQ 问答不足（末节 ${qs} 问，需 ≥3）`);
   }
   return v;
+}
+
+const META_MIN = 120;
+const META_MAX = 160;
+function metaDescLen(art) {
+  return String(art.seo?.metaDescription || '').length;
+}
+
+// metaDescription 偏短时只补写这一个字段，不动正文。最多试 2 次，仍不达标就保留原值（不阻塞发布）。
+async function fixMetaDescription(art) {
+  const body = String(art.content || '').replace(/[#*\[\]()!]/g, '').replace(/\n+/g, ' ').slice(0, 1200);
+  for (let i = 1; i <= 2; i++) {
+    try {
+      const r = await llmJSON(`为下面这篇资讯写一段搜索结果摘要（meta description）：130~150 个汉字，一段话，`
+        + `只依据正文事实，不编造，自然带上关键词「${String(art.seo?.keywords || '').split(/[,，]/)[0] || ''}」，不要复读标题。\n\n`
+        + `标题：${art.title}\n正文：${body}\n\n只输出 JSON：{"metaDescription":"..."}`, `补写摘要「${art.title}」`);
+      const d = normalizePunct(String(r?.metaDescription || '').trim());
+      if (d.length >= META_MIN && d.length <= META_MAX) {
+        art.seo = { ...(art.seo || {}), metaDescription: d };
+        return true;
+      }
+      console.warn(`[meta] 「${art.title}」补写第 ${i} 次长度 ${d.length}，不达标`);
+    } catch (e) {
+      if (e.message.startsWith('RATE_LIMIT')) throw e;
+      console.warn(`[meta] 补写失败: ${e.message.slice(0, 80)}`);
+    }
+  }
+  return false;
+}
+
+// 前台渲染器（apps/web/lib/markdown.tsx）不支持的块级语法里，能无损去掉的直接去掉：
+// 分隔线删行、引用块去掉「>」前缀、代码块去掉围栏保留内容。表格没法机械转换（转成列表会丢列关系），
+// 留给 lint 触发重写，重写后还有就转草稿（见 main 里的 markupBlocked）。
+function stripUnsupportedMarkup(content) {
+  return String(content || '')
+    .split('\n')
+    .filter((l) => !/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(l) && !/^\s*```/.test(l))
+    .map((l) => l.replace(/^(\s*)>\s?/, '$1'))
+    .join('\n');
+}
+const TABLE_RE = /^\s*\|.*\|\s*$/m;
+
+// 与 apps/cms/src/api/sensitive-word/services 保持一致：内置兜底词 + 后台启用词，扫标题+正文，忽略大小写
+const SENSITIVE_BUILTIN = ['敏感词测试', 'badword', '违禁示例'];
+function scanSensitive(words, art) {
+  const text = `${art.title || ''}\n${art.content || ''}`.toLowerCase();
+  return words.filter((w) => w && text.includes(w.toLowerCase()));
 }
 
 // 内链白名单校验：把不在候选集内的链接降级为纯文本（宁可没有内链，也不要 404 内链）
@@ -1375,7 +1422,7 @@ async function main() {
     fetchAllPages('/tags', '&fields[0]=name&populate[articles][count]=true'),
   ]);
   const channelBySlug = Object.fromEntries(channels.map((c) => [c.slug, c]));
-  const words = sensWords.map((w) => w.word).filter(Boolean);
+  const words = [...new Set([...SENSITIVE_BUILTIN, ...sensWords.map((w) => w.word).filter(Boolean)])];
   // 标签治理（防孤岛）：已存在标签集合 + 推荐复用清单（按使用频次降序）注入 prompt，
   // 引导 LLM 优先复用；配合入库时「每篇最多新建 1 个标签」的硬约束（见下方）。
   const existingTagSet = new Set(allTags.map((t) => t.name));
@@ -1420,6 +1467,7 @@ async function main() {
       }
       const basePrompt = writePrompt(prompts, sel, refs, tagLib, style, recentSignals, linkCands);
       let art = await llmJSON(basePrompt, `成文「${sel.topic}」`);
+      art.content = stripUnsupportedMarkup(art.content);
 
       // 套话自检 + SEO 结构自检：违规就带着违规清单重写一次
       let violations = [...lintStyle(art), ...lintSeo(art, style)];
@@ -1430,12 +1478,21 @@ async function main() {
             `${basePrompt}\n\n【重写要求】你上一版违反了以下禁令，必须逐条改掉，其余内容和结构保持不变：\n- ${violations.join('\n- ')}`,
             `重写「${sel.topic}」`,
           );
+          retry.content = stripUnsupportedMarkup(retry.content);
           const v2 = [...lintStyle(retry), ...lintSeo(retry, style)];
           if (v2.length < violations.length) { art = retry; violations = v2; }
         } catch (e) {
           console.warn(`[lint] 重写失败，沿用初稿: ${e.message.slice(0, 80)}`);
         }
       }
+
+      if (metaDescLen(art) < META_MIN) {
+        const before = metaDescLen(art);
+        if (await fixMetaDescription(art)) console.log(`[meta] 「${sel.topic}」摘要补写 ${before} → ${metaDescLen(art)} 字`);
+        else violations.push(`metaDescription 过短（${metaDescLen(art)} 字，需 ${META_MIN}~${META_MAX}）`);
+      }
+      // 表格前台渲染不了，重写后仍有就不自动发布，留草稿人工处理
+      const markupBlocked = TABLE_RE.test(String(art.content || ''));
 
       // 标点归一化（中文句内的半角标点）
       art.title = normalizePunct(art.title);
@@ -1475,8 +1532,35 @@ async function main() {
         console.log(`[link] 「${sel.topic}」追更篇补回链 → ${sel.prevPath}`);
       }
 
-      // 敏感词过滤 → 命中写入 reviewNote 提示人工重点看
-      const hit = words.filter((w) => art.title.includes(w) || art.content.includes(w) || (art.summary || '').includes(w));
+      // 敏感词：CMS 的 article lifecycle（beforeCreate）对「标题+正文」命中即抛错拦截，草稿也存不进去，
+      // 所以「命中留草稿」走不通。命中先让模型把这几个词换成中性说法改一次；仍命中就放弃本篇并记 done，
+      // 免得下一轮又选中同一话题白跑一遍生成。扫描范围与匹配方式对齐 CMS 的 sensitive-word service。
+      let hit = scanSensitive(words, art);
+      if (hit.length) {
+        console.warn(`[sensitive] 「${sel.topic}」命中敏感词：${hit.join('、')}，改写一次`);
+        try {
+          const r = await llmJSON(`下面是一篇资讯的标题和正文，其中出现了不允许使用的词：${hit.join('、')}。`
+            + `把这些词换成中性的表达，或删去所在短句；其余内容（含 markdown 链接）一字不改。\n\n`
+            + `只输出 JSON（content 里的换行转义为 \\n）：{"title":"...","content":"..."}\n\n`
+            + JSON.stringify({ title: art.title, content: art.content }), `去敏感词「${sel.topic}」`);
+          if (r?.title && r?.content) {
+            art.title = normalizePunct(r.title);
+            art.content = sanitizeLinks(stripUnsupportedMarkup(normalizePunct(r.content)), linkCands).content;
+          }
+        } catch (e) {
+          if (e.message.startsWith('RATE_LIMIT')) throw e;
+          console.warn(`[sensitive] 改写失败: ${e.message.slice(0, 80)}`);
+        }
+        hit = scanSensitive(words, art);
+        if (hit.length) {
+          console.warn(`[sensitive] 「${sel.topic}」改写后仍命中（${hit.join('、')}），放弃本篇`);
+          if (!DRY) {
+            for (const r of refs) if (r.title) state.done[fingerprint(r.title)] = { t: r.title.slice(0, 30), at: new Date().toISOString(), doc: 'sensitive-skip' };
+            writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+          }
+          continue;
+        }
+      }
       const channel = channelBySlug[sel.channelSlug];
       const author = authors.length ? authors[Math.floor(Math.random() * authors.length)] : null;
 
@@ -1560,8 +1644,9 @@ async function main() {
         }
       }
 
-      // 自动发布仅限「未命中敏感词 + 频道映射成功」的文章；否则留草稿 pending 人工审
-      const publish = AUTO_PUBLISH && !hit.length && !!channel;
+      // 自动发布仅限「频道映射成功 + 无前台渲染不了的表格」的文章；否则留草稿 pending 人工审
+      // （敏感词命中的上面已经改写或放弃，走到这里的都是干净的）
+      const publish = AUTO_PUBLISH && !markupBlocked && !!channel;
 
       // 文末导流外链：只给直接发布的文章、占当天额度。放在配图插入之后，免得多出的段落把配图位置往后推
       if (publish && outboundLeft > 0) {
@@ -1578,7 +1663,7 @@ async function main() {
         reviewState: publish ? 'approved' : 'pending',
         publishAt: publish ? new Date().toISOString() : undefined,
         reviewNote: [
-          hit.length ? `⚠️ 命中敏感词：${hit.join('、')}` : '',
+          markupBlocked ? '⚠️ 正文含 markdown 表格（前台不支持），已转草稿：改成「- 」列表后再发布' : '',
           violations.length ? `📝 套话自检未通过（已重写仍残留）：${violations.join('；')}` : '',
         ].filter(Boolean).join('\n') || undefined,
         seo: art.seo ? { metaTitle: (art.seo.metaTitle || '').slice(0, 70), metaDescription: (art.seo.metaDescription || '').slice(0, 160), keywords: art.seo.keywords } : undefined,
@@ -1586,7 +1671,7 @@ async function main() {
 
       if (DRY) {
         const body = String(art.content || '').split('\n').map((s) => s.trim()).filter(Boolean);
-        console.log(`[dry] ${art.title} → ${sel.channelSlug} 体裁=${style.name} 字数=${String(art.content || '').length} tags=${(art.tags || []).map((t) => t.name).join(',')}${hit.length ? ` ⚠️敏感词:${hit.join('、')}` : ''}${violations.length ? ` ⚠️套话:${violations.join('、')}` : ' ✓套话自检通过'}`);
+        console.log(`[dry] ${art.title} → ${sel.channelSlug} 体裁=${style.name} 字数=${String(art.content || '').length} tags=${(art.tags || []).map((t) => t.name).join(',')}${markupBlocked ? ' ⚠️含表格→草稿' : ''}${violations.length ? ` ⚠️套话:${violations.join('、')}` : ' ✓套话自检通过'}`);
         console.log(`      小标题：${(art.outline || []).join(' / ') || '(未输出 outline)'}`);
         console.log(`      开头：${(body.find((s) => !s.startsWith('#')) || '').slice(0, 50)}…`);
         console.log(`      结尾：…${(body[body.length - 1] || '').slice(-50)}`);
@@ -1605,7 +1690,7 @@ async function main() {
           }
           throw e;
         }
-        console.log(`[save] ${publish ? '已发布' : '草稿'} ✓ ${art.title} /${sel.channelSlug}/${slug} (${created.data.documentId})${hit.length ? ` ⚠️敏感词:${hit.join('、')}` : ''}`);
+        console.log(`[save] ${publish ? '已发布' : '草稿'} ✓ ${art.title} /${sel.channelSlug}/${slug} (${created.data.documentId})${markupBlocked ? ' ⚠️含表格→草稿' : ''}`);
         if (sel.kind === 'fill') {
           // 同一标签 FILL_COOLDOWN_DAYS 天内不再盘第二次
           state.fills = [...(state.fills || []), { tag: sel.tag, at: new Date().toISOString() }].slice(-60);
@@ -1633,7 +1718,7 @@ async function main() {
       console.error(`[error] 「${sel.topic}」失败: ${e.message}`);
     }
   }
-  console.log(`[done] 生成 ${results.length}/${picks.length} 篇${DRY ? '（dry-run 未入库）' : AUTO_PUBLISH ? '（自动发布开启，敏感词命中者留草稿）' : '，已入草稿箱等待审核（reviewState=pending）'}`);
+  console.log(`[done] 生成 ${results.length}/${picks.length} 篇${DRY ? '（dry-run 未入库）' : AUTO_PUBLISH ? '（自动发布开启，含表格者留草稿）' : '，已入草稿箱等待审核（reviewState=pending）'}`);
 }
 
 // 用 exitCode 而不是 process.exit()，保证 finally 里的解锁一定执行
