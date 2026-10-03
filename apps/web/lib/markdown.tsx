@@ -12,7 +12,7 @@ import Link from 'next/link';
  * 文本天然转义；URL 走白名单（站内相对路径 / http(s) 绝对地址），
  * 其余（javascript: 等）降级为纯文本。
  *
- * 支持：## ~ ###### 标题、- / * 列表、[文本](链接)、![alt](图片)、**加粗**
+ * 支持：## ~ ###### 标题、- / * 列表、1. 有序列表、[文本](链接)、![alt](图片)、**加粗**
  */
 
 /** 站内路径：/ 开头，只允许字母数字连字符斜杠下划线 */
@@ -34,15 +34,28 @@ export function renderArticleMarkdown(md: string): ReactNode[] {
   const lines = String(md ?? '').split('\n');
   const out: ReactNode[] = [];
   let listBuf: ReactNode[] = [];
+  let listType: 'ul' | 'ol' = 'ul';
 
   const flushList = () => {
     if (!listBuf.length) return;
     out.push(
-      <ul key={`ul-${out.length}`} className="my-3 list-disc pl-5">
-        {listBuf}
-      </ul>,
+      listType === 'ol' ? (
+        <ol key={`ol-${out.length}`} className="my-3 list-decimal pl-5">
+          {listBuf}
+        </ol>
+      ) : (
+        <ul key={`ul-${out.length}`} className="my-3 list-disc pl-5">
+          {listBuf}
+        </ul>
+      ),
     );
     listBuf = [];
+  };
+
+  const pushItem = (type: 'ul' | 'ol', text: string, i: number) => {
+    if (listType !== type) flushList(); // 有序/无序紧挨着时各成一组
+    listType = type;
+    listBuf.push(<li key={`li-${i}`}>{inline(text, `li-${i}`)}</li>);
   };
 
   lines.forEach((raw, i) => {
@@ -73,7 +86,15 @@ export function renderArticleMarkdown(md: string): ReactNode[] {
 
     // 列表项
     if (/^[-*]\s+/.test(line)) {
-      listBuf.push(<li key={`li-${i}`}>{inline(line.replace(/^[-*]\s+/, ''), `li-${i}`)}</li>);
+      pushItem('ul', line.replace(/^[-*]\s+/, ''), i);
+      return;
+    }
+
+    // 有序列表：模型写的序号常不连续或从中间开始，统一交给 <ol> 重新编号。
+    // 「1、」不认——中文正文里「1、」开头的常是普通段落。
+    const ol = line.match(/^\d{1,2}[.)]\s+(.+)$/);
+    if (ol) {
+      pushItem('ol', ol[1], i);
       return;
     }
 
