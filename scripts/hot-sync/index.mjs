@@ -5,7 +5,8 @@
  * 管线：热榜/新闻流同步 → LLM 选题(过滤时政敏感/合并跨源同事件) → LLM 二创成文
  *      → 敏感词过滤 → Strapi REST 写入草稿(reviewState=pending) → 后台人工审核发布。
  *
- * 采集源：五个热榜走 60s API（weibo/baidu/douyin/toutiao/zhihu），
+ * 采集源：五个热榜（weibo/baidu/douyin/toutiao/zhihu）——百度/头条/抖音/知乎先直连官方接口，
+ *      失败或微博则走 60s API（HOT_API_BASE 多实例按序回退）；腾讯新闻热点榜 qqnews 只直连；
  *      凤凰网自带取数（明星 ifengent / 影视 ifengmov）——只取标题作选题线索，不抓正文。
  *
  * 写入只经 Strapi REST API（符合 DEVELOPMENT_CONSTRAINTS §数据流约束），不直连数据库。
@@ -14,7 +15,7 @@
  * 反雷同：一篇一体裁（WRITE_STYLES 13 种，按频道亲和 + 最近用过的不重复轮换）+ 全局禁令
  *      + 把最近 20 篇的标题/开头作为「已用写法」注入禁令，防止模型长出新套路。
  *
- * 用法：node index.mjs [--limit 5] [--sources weibo,baidu,douyin,toutiao,zhihu,ifengent,ifengmov] [--dry-run] [--backend claude|minimax]
+ * 用法：node index.mjs [--limit 5] [--sources weibo,baidu,douyin,toutiao,zhihu,qqnews,ifengent,ifengmov] [--dry-run] [--backend claude|minimax]
  *      node index.mjs --upgrade-prompt   # 把后台「热榜二创配置」刷成内置新版 prompt（旧值备份进 note）
  */
 import { readFileSync, writeFileSync, existsSync, rmSync, unlinkSync, mkdirSync } from 'node:fs';
@@ -40,7 +41,11 @@ loadEnv();
 const CFG = {
   strapiUrl: process.env.STRAPI_API_URL || 'http://127.0.0.1:1337',
   strapiToken: process.env.STRAPI_API_TOKEN,
-  hotApiBase: process.env.HOT_API_BASE || 'https://60s-api.viki.moe/v2',
+  // Comma-separated, tried in order. The official instance (60s-api.viki.moe) has 403'd this
+  // VPS's IP since 2026-08-21 (CF WAF blacklist), so a public mirror goes first.
+  // Instance list: https://docs.60s-api.viki.moe/7306811m0
+  hotApiBases: (process.env.HOT_API_BASE || 'https://60s.okbaike.com/v2,https://60s-api.viki.moe/v2')
+    .split(',').map((s) => s.trim()).filter(Boolean),
   backend: process.env.GEN_BACKEND || 'claude',
   claudeModel: process.env.CLAUDE_MODEL || 'sonnet',
   minimaxUrl: process.env.MINIMAX_API_URL || 'https://api.minimax.io/v1',
@@ -68,15 +73,20 @@ const FILL_ONLY = argv.includes('--fill-only');
 // 自动发布：默认开（.env AUTO_PUBLISH=0 或 --draft 关闭）；命中敏感词的文章仍留草稿人工审核
 const AUTO_PUBLISH = !argv.includes('--draft') && (process.env.AUTO_PUBLISH ?? '1') !== '0';
 const BACKEND = arg('backend', CFG.backend);
-const SOURCE_KEYS = arg('sources', 'weibo,baidu,douyin,toutiao,zhihu,ifengent,ifengmov').split(',').map((s) => s.trim());
+const SOURCE_KEYS = arg('sources', 'weibo,baidu,douyin,toutiao,zhihu,qqnews,ifengent,ifengmov').split(',').map((s) => s.trim());
 
-// ---------- 热榜源适配（60s API，字段各端点不同） ----------
+// ---------- 热榜源适配 ----------
+// 有 direct 的先直连平台官方接口，失败再退回 60s API（字段各端点不同，见 map）。
+// 微博官方接口要访客 cookie，本机直连 403，只走 60s。
 const SOURCES = {
   weibo:   { path: 'weibo',     name: '微博热搜', map: (i) => ({ title: i.title, heat: i.hot_value || 0, link: i.link || '', desc: '', cover: '' }) },
-  baidu:   { path: 'baidu/hot', name: '百度热搜', map: (i) => ({ title: i.title, heat: Number(i.score) || 0, link: i.url || '', desc: i.desc || '', cover: i.cover || '' }) },
-  douyin:  { path: 'douyin',    name: '抖音热点', map: (i) => ({ title: i.title, heat: i.hot_value || 0, link: i.link || '', desc: '', cover: i.cover || '' }) },
-  toutiao: { path: 'toutiao',   name: '头条热榜', map: (i) => ({ title: i.title, heat: i.hot_value || 0, link: i.link || '', desc: '', cover: i.cover || '' }) },
-  zhihu:   { path: 'zhihu',     name: '知乎热榜', map: (i) => ({ title: i.title, heat: 0, link: i.link || '', desc: (i.detail || '').slice(0, 120), cover: i.cover || '' }) },
+  baidu:   { path: 'baidu/hot', name: '百度热搜', direct: fetchBaiduDirect, map: (i) => ({ title: i.title, heat: Number(i.score) || 0, link: i.url || '', desc: i.desc || '', cover: i.cover || '' }) },
+  douyin:  { path: 'douyin',    name: '抖音热点', direct: fetchDouyinDirect, map: (i) => ({ title: i.title, heat: i.hot_value || 0, link: i.link || '', desc: '', cover: i.cover || '' }) },
+  toutiao: { path: 'toutiao',   name: '头条热榜', direct: fetchToutiaoDirect, map: (i) => ({ title: i.title, heat: i.hot_value || 0, link: i.link || '', desc: '', cover: i.cover || '' }) },
+  zhihu:   { path: 'zhihu',     name: '知乎热榜', direct: fetchZhihuDirect, map: (i) => ({ title: i.title, heat: 0, link: i.link || '', desc: (i.detail || '').slice(0, 120), cover: i.cover || '' }) },
+  // 腾讯新闻热点榜：60s 没有这个源，只能直连（无 path = 不回退 60s）。
+  // 每条带百来字摘要，比微博/抖音的一句话词条素材厚。
+  qqnews:  { name: '腾讯新闻', direct: fetchQqNewsDirect },
   // 凤凰网不在 60s API 里，自带取数（见 fetchIfengList）。
   // 它和上面五个的性质不同：是新闻流不是热榜，没有热度值，只能按发布时间倒序取。
   // 好处是条目本身经过编辑筛选，比微博热搜的一句话词条更像「一件事」。
@@ -96,7 +106,7 @@ async function fetchHotLists() {
       const src = SOURCES[key];
       if (!src) return console.warn(`[warn] 未知源 ${key}，跳过`);
       try {
-        const items = src.fetch ? await src.fetch() : await fetch60s(src);
+        const items = src.fetch ? await src.fetch() : await fetchHot(src);
         for (const item of items) all.push({ source: src.name, ...item });
         console.log(`[sync] ${src.name}: ${items.length} 条`);
       } catch (e) {
@@ -104,15 +114,102 @@ async function fetchHotLists() {
       }
     })
   );
+  // 热榜源全挂时只剩凤凰两个新闻流，选题会枯竭——2026-08-21 起 60s 官方实例封了本机 IP，
+  // 只打 warn 导致一个半月没人发现。这里单独打一条醒目的 error。
+  const hotKeys = SOURCE_KEYS.filter((k) => SOURCES[k] && !SOURCES[k].fetch);
+  const hotNames = new Set(hotKeys.map((k) => SOURCES[k].name));
+  if (hotKeys.length && !all.some((i) => hotNames.has(i.source))) {
+    console.error(`[ALERT] 全部热榜源拉取失败（${hotKeys.join(',')}），本轮只剩新闻流选题。检查直连接口与 HOT_API_BASE`);
+  }
   return all;
 }
 
+// 热榜源：先直连，再按 HOT_API_BASE 顺序逐个试 60s 实例，任一成功即返回。
+async function fetchHot(src) {
+  const errs = [];
+  if (src.direct) {
+    try {
+      const items = await src.direct();
+      if (items.length) return items.slice(0, 20);
+      errs.push('direct: 0 条');
+    } catch (e) {
+      errs.push(`direct: ${e.message}`);
+    }
+  }
+  for (const base of src.path ? CFG.hotApiBases : []) {
+    try {
+      return await fetch60s(base, src);
+    } catch (e) {
+      errs.push(`${new URL(base).host}: ${e.message}`);
+    }
+  }
+  throw new Error(errs.join(' | '));
+}
+
+async function fetchJson(url, headers = {}) {
+  const res = await fetch(url, { headers: { 'User-Agent': IFENG_UA, ...headers }, signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 // 60s API 系（weibo/baidu/douyin/toutiao/zhihu）：统一端点，各自 map 字段
-async function fetch60s(src) {
-  const res = await fetch(`${CFG.hotApiBase}/${src.path}`, { signal: AbortSignal.timeout(15000) });
-  const json = await res.json();
+async function fetch60s(base, src) {
+  const json = await fetchJson(`${base}/${src.path}`);
   if (json.code !== 200 || !Array.isArray(json.data)) throw new Error(`code=${json.code}`);
   return json.data.slice(0, 20).map(src.map);
+}
+
+// ---------- 平台官方热榜接口（直连）----------
+// 字段对齐 60s 的 map 输出：{ title, heat, link, desc, cover }。
+// 百度 PC 版接口带 desc/热度/配图；置顶条（topContent）不取，与 60s 口径一致。
+async function fetchBaiduDirect() {
+  const json = await fetchJson('https://top.baidu.com/api/board?platform=pc&tab=realtime');
+  const list = json?.data?.cards?.[0]?.content;
+  if (!Array.isArray(list)) throw new Error('结构变化：无 data.cards[0].content');
+  return list.map((i) => ({ title: i.query || i.word, heat: Number(i.hotScore) || 0, link: i.rawUrl || i.url || '', desc: i.desc || '', cover: i.img || '' }));
+}
+
+async function fetchToutiaoDirect() {
+  const json = await fetchJson('https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc');
+  if (!Array.isArray(json?.data)) throw new Error('结构变化：无 data[]');
+  return json.data.map((i) => ({ title: i.Title, heat: Number(i.HotValue) || 0, link: i.Url || '', desc: '', cover: i.Image?.url || '' }));
+}
+
+async function fetchDouyinDirect() {
+  const json = await fetchJson('https://www.iesdouyin.com/web/api/v2/hotsearch/billboard/word/');
+  if (!Array.isArray(json?.word_list)) throw new Error('结构变化：无 word_list[]');
+  return json.word_list.map((i) => ({ title: i.word, heat: Number(i.hot_value) || 0, link: `https://www.douyin.com/search/${encodeURIComponent(i.word)}`, desc: '', cover: '' }));
+}
+
+// 网页版 www.zhihu.com/api/v3/... 要登录（401），移动端接口免登录。
+async function fetchZhihuDirect() {
+  const json = await fetchJson('https://api.zhihu.com/topstory/hot-lists/total?limit=20');
+  if (!Array.isArray(json?.data)) throw new Error('结构变化：无 data[]');
+  return json.data.filter((i) => i.target?.title).map((i) => {
+    const m = String(i.detail_text || '').match(/([\d.]+)\s*万/);
+    const qid = String(i.target.url || '').match(/questions\/(\d+)/)?.[1];
+    return {
+      title: i.target.title,
+      heat: m ? Math.round(Number(m[1]) * 1e4) : 0,
+      link: qid ? `https://www.zhihu.com/question/${qid}` : '',
+      desc: String(i.target.excerpt || '').slice(0, 120),
+      cover: i.children?.[0]?.thumbnail || '',
+    };
+  });
+}
+
+// 第一条是「腾讯新闻用户最关注的热点，每10分钟更新一次」的榜单说明，没有 url，靠 url 过滤掉。
+async function fetchQqNewsDirect() {
+  const json = await fetchJson('https://i.news.qq.com/gw/event/pc_hot_ranking_list?ids_hash=&offset=0&page_size=50');
+  const list = json?.idlist?.[0]?.newslist;
+  if (!Array.isArray(list)) throw new Error('结构变化：无 idlist[0].newslist');
+  return list.filter((i) => i.title && i.url).map((i) => ({
+    title: i.title,
+    heat: Number(i.hotEvent?.hotScore ?? i.readCount) || 0,
+    link: i.url,
+    desc: String(i.abstract || '').replace(/\s+/g, ' ').slice(0, 120),
+    cover: i.thumbnails_big?.[0] || i.thumbnails?.[0] || '',
+  }));
 }
 
 // ---------- 凤凰网娱乐列表页（ent.ifeng.com/star/、/movie/）----------
@@ -431,7 +528,8 @@ const WRITE_STYLES = [
       '末段「目前能确定的只有」：把确定与未确定分开列清楚',
     ],
     title: '突出「爆料 / 知情人 / 曝出 / 实锤了吗」',
-    ending: '以「确定的 vs 还只是网传的」两栏式总结收尾',
+    // 原写「两栏式」，模型会出 markdown 表格，前台渲染器不支持表格，线上显示成裸的 | --- |。
+    ending: '以「确定的 / 还只是网传的」两组收尾：各起一行加粗引语（**确定的：** / **还只是网传的：**），下面用「- 」列表逐条列出',
     bans: '可信度标注必须诚实，素材里没有佐证的一律标【仅网传】或【存疑】；不得把网传当既成事实转述',
   },
   {
@@ -592,6 +690,7 @@ const GLOBAL_BANS = [
   '禁止自称：本文、笔者、小编、我们编辑部',
   '句子要短，多用口语的短句；不要每段都用「其实」「说白了」「不得不说」开头',
   '正文里不要出现「梳理一下」「先来看看」这类流程性套话，直接进入内容',
+  '排版只用这几种 markdown：## 小标题、「- 」无序列表、「1. 」有序列表、**加粗**、[链接](路径)；禁止表格（| 竖线 |）、引用块（>）、分隔线（---）、代码块——前台不支持，会显示成乱码',
   '不要反复声明信息缺失：「具体数据未公开」「素材未提及」「查无实据」「暂无更多信息」这类交代全篇最多 1 次；素材里没有的东西直接不写，换能写的角度展开，别把「我没有资料」写成内容',
 ].map((s, i) => `${i + 1}. ${s}`).join('\n');
 
@@ -689,6 +788,9 @@ const BODY_BANS = [
   { re: /(不仅.{0,12}而且|值得注意的是|总的来(说|看)|综合来看|综上所述|纵观[^，。]{0,8}，|在这个.{0,10}时代|让我们一起)/, msg: 'AI 腔套话' },
   { re: /(本文|笔者|小编)/, msg: '禁止自称' },
   { re: /(梳理一下|先来梳理|先来看看|让我们来看)/, msg: '流程性套话' },
+  // 前台 apps/web/lib/markdown.tsx 不支持这些语法，漏过去就是裸标记上线
+  { re: /^\s*\|.*\|\s*$/m, msg: '用了 markdown 表格（前台不支持，改用「- 」列表）' },
+  { re: /^\s*(>|```|-{3,}\s*$)/m, msg: '用了引用块/代码块/分隔线（前台不支持）' },
 ];
 const TITLE_BANS = /(网友吵翻|引热议|网友直呼|全网围观|太魔性|炸了吗?|你敢信|这一幕|意想不到)/;
 // 频次限制（不是禁用）：这些短语本身没错，写多了才变成套话。
