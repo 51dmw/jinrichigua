@@ -874,6 +874,135 @@ async function ensureChineseFieldLabels(strapi: StrapiApp) {
   strapi.log.info(`[bootstrap] 已应用后台字段中文标签（更新 ${touched} 个配置）`);
 }
 
+// ── 采集工作台（scripts/collect）后台表的中文标签与填写说明 ──
+// 单独一个守卫标记：不重跑上面的全站标签逻辑，免得覆盖已在后台手改过的标签。
+const COLLECT_LABELS: Record<string, Record<string, string>> = {
+  'api::collect-source.collect-source': {
+    name: '名称', entryUrls: '入口网址', kind: '源类型', mode: '使用模式', selectors: '抽取选择器',
+    intervalMinutes: '抓取间隔（分钟）', maxItemsPerRun: '每轮上限', rateLimitPerMin: '每分钟请求上限',
+    respectRobots: '遵守 robots.txt', usageNote: '使用依据', enabled: '是否启用', lastRunAt: '上次运行',
+    testRequestedAt: '请求试抓', lastTestResult: '试抓结果', items: '采集草稿',
+  },
+  'api::collect-category.collect-category': {
+    name: '类型名称', slug: '英文标识', description: '判断说明', examples: '例子', enabled: '是否启用',
+  },
+  'api::collect-prompt.collect-prompt': {
+    name: '名称', stage: '环节', matchSources: '匹配采集源', matchCategories: '匹配内容类型',
+    matchMode: '匹配模式', priority: '优先级', provider: '服务商', model: '模型',
+    fallbackModels: '备选模型', temperature: '温度', maxTokens: '最大输出长度', content: '提示词正文',
+    outputSchema: '输出格式', version: '版本', history: '历史版本', enabled: '是否启用', stats: '效果统计',
+  },
+  'api::collect-item.collect-item': {
+    state: '状态', source: '采集源', sourceUrl: '原文网址', sourcePublishedAt: '原文时间', title: '标题',
+    summary: '摘要', rawContent: '原文（仅授权源）', category: '内容类型', entities: '识别实体',
+    promptUsed: '所用提示词', kbUsed: '所用知识', processed: '成文版本', similarTo: '疑似重复',
+    rejectReason: '退回原因', editorNote: '编辑批注', adoptedArticle: '采纳生成的文章',
+    reprocessRequest: '重跑请求', snapshotPath: '快照路径',
+  },
+  'api::collect-config.collect-config': {
+    providers: '模型服务商', dailyCallLimit: '每日调用上限', kbCharLimit: '知识召回字数上限',
+    thinThreshold: '素材厚度阈值', note: '备注',
+  },
+  'api::collect-run.collect-run': {
+    trigger: '触发方式', startedAt: '开始时间', finishedAt: '结束时间', calls: '模型调用次数',
+    stats: '各源统计', errors: '错误摘要',
+  },
+};
+const COLLECT_HINTS: Record<string, Record<string, string>> = {
+  'api::collect-source.collect-source': {
+    entryUrls: '网址数组，如 ["https://example.com/rss.xml"]。只允许 http / https。',
+    mode: '参考：只存标题和摘要，基于事实另写。授权：存全文，仅限确有授权或转载协议的源。',
+    selectors: '列表页才需要，如 {"item":".news li","link":"a@href","title":"a"}；RSS / sitemap 留空。',
+    usageNote: '写明采集依据。授权模式必填：授权方、协议或链接。',
+    enabled: '启用前须已为本源配好识别、成文、审核三个环节的提示词，否则保存会被拒绝。',
+    testRequestedAt: '填当前时间并保存即请求试抓一条；采集脚本下一轮处理，结果写回「试抓结果」。',
+  },
+  'api::collect-category.collect-category': {
+    description: '一两句话说明什么样的内容算这一类，识别环节原样交给模型。',
+    examples: '每行一个例子标题，帮助模型判断。',
+  },
+  'api::collect-prompt.collect-prompt': {
+    matchSources: '识别环节必须指定采集源。不指定任何源和类型的提示词不会被使用（不设兜底）。',
+    provider: '填「采集配置 → 模型服务商」里的名称，如 wujiai。',
+    model: '服务商的模型 ID，如 无极AI。',
+    fallbackModels: '主模型失败时按顺序尝试，如 [{"provider":"wujiai","model":"无极AI"}]。',
+    content: '可用占位符见文档；修改后自动存档旧版本并升级版本号。',
+  },
+  'api::collect-item.collect-item': {
+    state: '待处理 / 已采纳 / 已退回 / 已合并 / 失败 / 无匹配（没有对应提示词）/ 素材不足。',
+    rejectReason: '退回时请写原因，系统会据此学习。',
+  },
+  'api::collect-config.collect-config': {
+    providers: '如 [{"name":"wujiai","protocol":"openai_compatible","baseUrlEnv":"COLLECT_WUJIAI_BASE_URL","keyEnv":"COLLECT_WUJIAI_API_KEY","maxConcurrency":2}]。只写环境变量名，密钥本身在 scripts/collect/.env。',
+  },
+};
+
+// 「采集配置」首次为空时写入默认服务商（只写环境变量名，密钥在 scripts/collect/.env）。已有配置一律不动。
+async function ensureCollectConfig(strapi: StrapiApp) {
+  try {
+    const uid = 'api::collect-config.collect-config';
+    const existing = await strapi.documents(uid).findFirst({});
+    if (existing) return;
+    await strapi.documents(uid).create({
+      data: {
+        providers: [
+          {
+            name: 'wujiai',
+            label: '无极AI（OpenAI 兼容）',
+            protocol: 'openai_compatible',
+            baseUrlEnv: 'COLLECT_WUJIAI_BASE_URL',
+            keyEnv: 'COLLECT_WUJIAI_API_KEY',
+            models: ['无极AI'],
+            maxConcurrency: 2,
+            timeoutMs: 240000,
+          },
+        ],
+        dailyCallLimit: 500,
+        kbCharLimit: 1500,
+        thinThreshold: 100,
+        note: '2026-10-05 初始化：服务商无极AI，接口与密钥见 scripts/collect/.env',
+      } as any,
+    });
+    strapi.log.info('[bootstrap] 采集配置已初始化（服务商 wujiai）');
+  } catch (e) {
+    strapi.log.warn(`[bootstrap] collect-config init skipped: ${(e as Error).message}`);
+  }
+}
+
+async function ensureCollectFieldLabels(strapi: StrapiApp) {
+  try {
+  const store = strapi.store({ type: 'type', name: 'setup' });
+  if (await store.get({ key: 'collectFieldLabelsV1HasRun' })) return;
+  const q = strapi.db.query('strapi::core-store');
+  let touched = 0;
+  for (const uid of Object.keys(COLLECT_LABELS)) {
+    const row = await q.findOne({ where: { key: `plugin_content_manager_configuration_content_types::${uid}` } });
+    if (!row) continue;
+    let cfg: any;
+    try {
+      cfg = JSON.parse(row.value);
+    } catch {
+      continue;
+    }
+    const labels = COLLECT_LABELS[uid];
+    const hints = COLLECT_HINTS[uid] ?? {};
+    for (const [field, m] of Object.entries<any>(cfg.metadatas ?? {})) {
+      const label = labels[field] ?? FIELD_LABELS_BASE[field];
+      if (label && m?.edit) m.edit.label = label;
+      if (label && m?.list) m.list.label = label;
+      if (hints[field] && m?.edit) m.edit.description = hints[field];
+    }
+    await q.update({ where: { id: row.id }, data: { value: JSON.stringify(cfg) } });
+    touched += 1;
+  }
+  // 配置行在内容管理器首次启动时才生成；一个都没找到就不打标记，下次启动再试
+  if (touched > 0) await store.set({ key: 'collectFieldLabelsV1HasRun', value: true });
+  strapi.log.info(`[bootstrap] 采集工作台字段中文标签（更新 ${touched} 个配置）`);
+  } catch (e) {
+    strapi.log.warn(`[bootstrap] collect labels skipped: ${(e as Error).message}`);
+  }
+}
+
 // 候选标签词库入库（仅名称，slug 由 lifecycle 自动生成）。
 // find-or-create by name：已存在的（含 REBRAND_TAGS 14 个）跳过，幂等。
 // 未被文章使用的标签对外隐身，不生成路径——换库/重部署后词库自动复现。
@@ -994,6 +1123,8 @@ export default {
       await ensureCandidateTags(strapi); // 候选标签词库（仅名称，slug 自动；未用即隐身）
       await ensureDevToken(strapi); // 仅开发测试
       await ensureChineseFieldLabels(strapi); // 后台字段中文显示标签（A：不改字段名/不动 API）
+      await ensureCollectFieldLabels(strapi); // 采集工作台 6 张表的中文标签（独立守卫）
+      await ensureCollectConfig(strapi); // 采集配置为空时写入默认服务商
       if (!initHasRun) {
         await seedContent(strapi);
         await store.set({ key: 'initHasRun', value: true });

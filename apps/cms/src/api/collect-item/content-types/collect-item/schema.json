@@ -1,0 +1,82 @@
+{
+  "kind": "collectionType",
+  "collectionName": "collect_items",
+  "info": {
+    "singularName": "collect-item",
+    "pluralName": "collect-items",
+    "displayName": "采集草稿",
+    "description": "采集回来、等待人工审核的条目。采纳后生成待审核的正式文章，不会自动发布"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "state": {
+      "type": "enumeration",
+      "enum": ["pending", "adopted", "rejected", "merged", "failed", "unmatched", "thin"],
+      "default": "pending",
+      "required": true
+    },
+    "source": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::collect-source.collect-source",
+      "inversedBy": "items"
+    },
+    "sourceUrl": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "sourcePublishedAt": {
+      "type": "datetime"
+    },
+    "title": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "text"
+    },
+    "rawContent": {
+      "type": "text"
+    },
+    "category": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::collect-category.collect-category"
+    },
+    "entities": {
+      "type": "json"
+    },
+    "promptUsed": {
+      "type": "json"
+    },
+    "kbUsed": {
+      "type": "json"
+    },
+    "processed": {
+      "type": "json"
+    },
+    "similarTo": {
+      "type": "string"
+    },
+    "rejectReason": {
+      "type": "text"
+    },
+    "editorNote": {
+      "type": "text"
+    },
+    "adoptedArticle": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::article.article"
+    },
+    "reprocessRequest": {
+      "type": "json"
+    },
+    "snapshotPath": {
+      "type": "string"
+    }
+  }
+}

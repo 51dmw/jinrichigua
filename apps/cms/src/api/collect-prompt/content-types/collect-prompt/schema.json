@@ -1,0 +1,89 @@
+{
+  "kind": "collectionType",
+  "collectionName": "collect_prompts",
+  "info": {
+    "singularName": "collect-prompt",
+    "pluralName": "collect-prompts",
+    "displayName": "采集提示词",
+    "description": "提示词与模型成套配置。只在明确指定的源 / 内容类型上生效，不设兜底；修改正文会自动存档旧版本"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "stage": {
+      "type": "enumeration",
+      "enum": ["identify", "write", "review", "learn", "ruleGen"],
+      "required": true
+    },
+    "matchSources": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::collect-source.collect-source"
+    },
+    "matchCategories": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::collect-category.collect-category"
+    },
+    "matchMode": {
+      "type": "enumeration",
+      "enum": ["any", "reference", "licensed"],
+      "default": "any",
+      "required": true
+    },
+    "priority": {
+      "type": "integer",
+      "default": 0
+    },
+    "provider": {
+      "type": "string",
+      "required": true
+    },
+    "model": {
+      "type": "string",
+      "required": true
+    },
+    "fallbackModels": {
+      "type": "json"
+    },
+    "temperature": {
+      "type": "decimal",
+      "min": 0,
+      "max": 2
+    },
+    "maxTokens": {
+      "type": "integer",
+      "default": 4096,
+      "min": 64,
+      "max": 32768
+    },
+    "content": {
+      "type": "text",
+      "required": true
+    },
+    "outputSchema": {
+      "type": "json"
+    },
+    "version": {
+      "type": "integer",
+      "default": 1
+    },
+    "history": {
+      "type": "json"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "stats": {
+      "type": "json"
+    }
+  }
+}

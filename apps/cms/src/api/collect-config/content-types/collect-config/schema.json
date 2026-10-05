@@ -1,0 +1,38 @@
+{
+  "kind": "singleType",
+  "collectionName": "collect_configs",
+  "info": {
+    "singularName": "collect-config",
+    "pluralName": "collect-configs",
+    "displayName": "采集配置",
+    "description": "采集工作台的模型服务商与全局上限。密钥只放在 scripts/collect/.env，这里只记环境变量名"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "providers": {
+      "type": "json",
+      "required": true
+    },
+    "dailyCallLimit": {
+      "type": "integer",
+      "default": 500,
+      "min": 0
+    },
+    "kbCharLimit": {
+      "type": "integer",
+      "default": 1500,
+      "min": 0
+    },
+    "thinThreshold": {
+      "type": "integer",
+      "default": 100,
+      "min": 0
+    },
+    "note": {
+      "type": "text"
+    }
+  }
+}

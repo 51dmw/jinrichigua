@@ -1,0 +1,38 @@
+{
+  "kind": "collectionType",
+  "collectionName": "collect_categories",
+  "info": {
+    "singularName": "collect-category",
+    "pluralName": "collect-categories",
+    "displayName": "采集内容类型",
+    "description": "识别环节按这张表判断内容类型；每个类型的说明和例子会原样交给模型"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "slug": {
+      "type": "string",
+      "required": true,
+      "unique": true,
+      "regex": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "description": {
+      "type": "text",
+      "required": true
+    },
+    "examples": {
+      "type": "text"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

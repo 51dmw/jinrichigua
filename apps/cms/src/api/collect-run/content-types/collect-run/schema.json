@@ -1,0 +1,39 @@
+{
+  "kind": "collectionType",
+  "collectionName": "collect_runs",
+  "info": {
+    "singularName": "collect-run",
+    "pluralName": "collect-runs",
+    "displayName": "采集运行记录",
+    "description": "采集脚本每轮写一条运行摘要；调用明细在本机 JSONL 日志里"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "trigger": {
+      "type": "enumeration",
+      "enum": ["schedule", "manual", "test"],
+      "default": "schedule",
+      "required": true
+    },
+    "startedAt": {
+      "type": "datetime",
+      "required": true
+    },
+    "finishedAt": {
+      "type": "datetime"
+    },
+    "calls": {
+      "type": "integer",
+      "default": 0
+    },
+    "stats": {
+      "type": "json"
+    },
+    "errors": {
+      "type": "text"
+    }
+  }
+}

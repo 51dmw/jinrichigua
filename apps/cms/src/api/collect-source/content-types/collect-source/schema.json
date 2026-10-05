@@ -1,0 +1,83 @@
+{
+  "kind": "collectionType",
+  "collectionName": "collect_sources",
+  "info": {
+    "singularName": "collect-source",
+    "pluralName": "collect-sources",
+    "displayName": "采集源",
+    "description": "采集工作台（scripts/collect）的采集网址与抓取规则。启用前必须已匹配到识别、成文、审核三个环节的提示词"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "entryUrls": {
+      "type": "json",
+      "required": true
+    },
+    "kind": {
+      "type": "enumeration",
+      "enum": ["rss", "sitemap", "list", "json"],
+      "default": "rss",
+      "required": true
+    },
+    "mode": {
+      "type": "enumeration",
+      "enum": ["reference", "licensed"],
+      "default": "reference",
+      "required": true
+    },
+    "selectors": {
+      "type": "json"
+    },
+    "intervalMinutes": {
+      "type": "integer",
+      "default": 60,
+      "min": 10
+    },
+    "maxItemsPerRun": {
+      "type": "integer",
+      "default": 10,
+      "min": 1,
+      "max": 100
+    },
+    "rateLimitPerMin": {
+      "type": "integer",
+      "default": 10,
+      "min": 1,
+      "max": 60
+    },
+    "respectRobots": {
+      "type": "boolean",
+      "default": true
+    },
+    "usageNote": {
+      "type": "text"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "lastRunAt": {
+      "type": "datetime"
+    },
+    "testRequestedAt": {
+      "type": "datetime"
+    },
+    "lastTestResult": {
+      "type": "json"
+    },
+    "items": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::collect-item.collect-item",
+      "mappedBy": "source"
+    }
+  }
+}
