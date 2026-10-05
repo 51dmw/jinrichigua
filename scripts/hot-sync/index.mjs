@@ -18,25 +18,22 @@
  * 用法：node index.mjs [--limit 5] [--sources weibo,baidu,douyin,toutiao,zhihu,qqnews,ifengent,ifengmov] [--dry-run] [--backend claude|minimax]
  *      node index.mjs --upgrade-prompt   # 把后台「热榜二创配置」刷成内置新版 prompt（旧值备份进 note）
  */
-import { readFileSync, writeFileSync, existsSync, rmSync, unlinkSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, unlinkSync, mkdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadEnvFile } from '../lib/env.mjs';
+import { createLock } from '../lib/lock.mjs';
+import { createStrapi } from '../lib/strapi.mjs';
+import { callClaude as callClaudeLib, callOpenAICompat, llmJSON as llmJSONLib } from '../lib/llm.mjs';
+import { render, normalizePunct, bigramJaccard, stripUnsupportedMarkup, TABLE_RE, SENSITIVE_BUILTIN, scanSensitive } from '../lib/text.mjs';
 
 const DIR = dirname(fileURLToPath(import.meta.url));
 const STATE_FILE = join(DIR, 'state.json');
 
 // ---------- env ----------
-function loadEnv() {
-  const file = join(DIR, '.env');
-  if (!existsSync(file)) throw new Error('缺少 scripts/hot-sync/.env（参照 .env.example）');
-  for (const line of readFileSync(file, 'utf8').split('\n')) {
-    const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
-    if (m && !line.trim().startsWith('#') && m[2] !== '' && !(m[1] in process.env)) process.env[m[1]] = m[2];
-  }
-}
-loadEnv();
+loadEnvFile(join(DIR, '.env'), { missingMessage: '缺少 scripts/hot-sync/.env（参照 .env.example）' });
 
 const CFG = {
   strapiUrl: process.env.STRAPI_API_URL || 'http://127.0.0.1:1337',
@@ -271,31 +268,7 @@ async function fetchIfengList(url) {
 // 用排它创建的锁文件把并发挡住；锁超过 STALE_MS 视为上次崩溃遗留，可接管。
 const LOCK_FILE = join(DIR, '.run.lock');
 const LOCK_STALE_MS = 60 * 60 * 1000;
-
-let lockHeld = false; // 只有真正抢到锁的实例才有资格释放，否则会把别人的锁删掉
-
-function acquireLock() {
-  try {
-    writeFileSync(LOCK_FILE, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }), { flag: 'wx' });
-    lockHeld = true;
-    return true;
-  } catch (e) {
-    if (e.code !== 'EEXIST') throw e;
-    let age = Infinity;
-    try { age = Date.now() - new Date(JSON.parse(readFileSync(LOCK_FILE, 'utf8')).at).getTime(); } catch { /* 锁文件损坏 → 当作过期 */ }
-    if (age < LOCK_STALE_MS) return false;
-    console.warn(`[lock] 发现 ${Math.round(age / 60000)} 分钟前的残留锁，接管`);
-    writeFileSync(LOCK_FILE, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }));
-    lockHeld = true;
-    return true;
-  }
-}
-
-function releaseLock() {
-  if (!lockHeld) return; // 没抢到锁的实例不得删锁
-  try { if (existsSync(LOCK_FILE)) rmSync(LOCK_FILE); } catch { /* 释放失败不影响主流程，靠 STALE 兜底 */ }
-  lockHeld = false;
-}
+const { acquire: acquireLock, release: releaseLock } = createLock(LOCK_FILE, LOCK_STALE_MS);
 
 // ---------- 去重状态 ----------
 function loadState() {
@@ -321,107 +294,23 @@ function fingerprint(title) {
 // 但它当时是带着完整工具权限的，本可以做出文件动作。
 // 成文只需要文本进文本出，给它仓库和工具是纯粹多余的攻击面。
 const SAFE_CWD = join(tmpdir(), 'hot-sync-gen');
-const CLAUDE_NO_TOOLS = ['--disallowedTools', 'Bash,Read,Write,Edit,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit'];
+const callClaude = (prompt) => callClaudeLib(prompt, { model: CFG.claudeModel, cwd: SAFE_CWD });
 
-function callClaude(prompt) {
-  return new Promise((resolve, reject) => {
-    try { mkdirSync(SAFE_CWD, { recursive: true }); } catch { /* 已存在即可 */ }
-    const child = spawn('claude', ['-p', '--model', CFG.claudeModel, ...CLAUDE_NO_TOOLS], {
-      cwd: SAFE_CWD, stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, ANTHROPIC_API_KEY: '' }, // 强制走订阅登录态而非 API key
-    });
-    let out = '', err = '';
-    const timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error('claude -p 超时(300s)')); }, 300000);
-    child.stdout.on('data', (d) => (out += d));
-    child.stderr.on('data', (d) => (err += d));
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      code === 0 ? resolve(out) : reject(new Error(`claude exit ${code}: ${err.slice(0, 300)}`));
-    });
-    child.stdin.write(prompt);
-    child.stdin.end();
-  });
-}
-
-// OpenAI 兼容后端（minimax / wujiai 共用）。注意 wujiai WAF 拦含 "OpenAI/J" 的 UA，统一伪装 openai-python。
-async function callOpenAICompat({ url, key, model, name }, prompt) {
-  if (!key) throw new Error(`.env 缺 ${name.toUpperCase()}_API_KEY`);
-  const res = await fetch(`${url}/chat/completions`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'User-Agent': 'openai-python/1.0.0' },
-    body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], max_tokens: 8192 }),
-    signal: AbortSignal.timeout(240000), // minimax/wujiai 服务端响应都可能波动，给长超时（见运维记录）
-  });
-  const json = await res.json();
-  if (!res.ok) throw new Error(`${name} ${res.status}: ${JSON.stringify(json).slice(0, 200)}`);
-  return json.choices[0].message.content;
-}
-
+// OpenAI 兼容后端（minimax / wujiai 共用）
 const OPENAI_BACKENDS = {
   minimax: () => ({ url: CFG.minimaxUrl, key: CFG.minimaxKey, model: CFG.minimaxModel, name: 'minimax' }),
   wujiai: () => ({ url: CFG.wujiaiUrl, key: CFG.wujiaiKey, model: CFG.wujiaiModel, name: 'wujiai' }),
 };
 
-// 调 LLM 并解析 JSON；调用失败或 JSON 解析失败都算失败，整体重试（LLM 输出不稳定，重试通常能过）。
-// 解析失败先走一次「修复」：把坏输出发回 LLM 修成合法 JSON（引号/换行转义是高频病灶，重写不如修）。
-async function llmJSON(prompt, label) {
-  const fn = OPENAI_BACKENDS[BACKEND] ? (p) => callOpenAICompat(OPENAI_BACKENDS[BACKEND](), p) : callClaude;
-  for (let i = 1; i <= 3; i++) {
-    try {
-      const raw = await fn(prompt);
-      try { return parseJSON(raw, label); } catch (pe) {
-        console.warn(`[warn] ${label} 第${i}次输出非法 JSON（${pe.message.slice(0, 80)}），尝试修复`);
-        const fixed = await fn(`以下文本是一段不合法的 JSON（字符串内可能有未转义的引号或换行）。修复转义使其成为合法 JSON，内容原样保留，只输出修复后的 JSON，不要任何其他文字：\n\n${raw}`);
-        return parseJSON(fixed, `${label}(修复)`);
-      }
-    } catch (e) {
-      // 触发订阅限速时不要继续重试——重试只会把剩余配额烧光，直接中止本轮，等下一轮 cron
-      if (/rate.?limit|usage limit|too many requests|429|quota/i.test(e.message)) {
-        throw new Error(`RATE_LIMIT: ${e.message.slice(0, 120)}（已中止本轮，等下一轮 cron 重试）`);
-      }
-      console.warn(`[warn] ${label} 第${i}次失败: ${e.message.slice(0, 200)}`);
-      if (i === 3) throw e;
-    }
-  }
-}
-
-function parseJSON(text, label) {
-  const cleaned = text.replace(/```(?:json)?/g, '');
-  const s = cleaned.indexOf('['), s2 = cleaned.indexOf('{');
-  const start = s >= 0 && (s2 < 0 || s < s2) ? s : s2;
-  const end = Math.max(cleaned.lastIndexOf(']'), cleaned.lastIndexOf('}'));
-  if (start < 0 || end <= start) throw new Error(`${label} 输出不含 JSON: ${text.slice(0, 120)}`);
-  return JSON.parse(cleaned.slice(start, end + 1));
+// 按 --backend 选调用函数，重试 / JSON 修复 / 限流中止见 scripts/lib/llm.mjs
+function llmJSON(prompt, label) {
+  const call = OPENAI_BACKENDS[BACKEND] ? (p) => callOpenAICompat(OPENAI_BACKENDS[BACKEND](), p) : callClaude;
+  return llmJSONLib(call, prompt, label);
 }
 
 // 采集素材封面图 → 传入 Strapi 媒体库（自存避免防盗链/签名过期）；失败返回 null，文章照常发只是无图
 // 上传并返回 { id, url }（url 供正文配图拼 markdown 用）；失败返回 null
-async function uploadMedia(url, name) {
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15' },
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!res.ok) throw new Error(`http ${res.status}`);
-    const type = (res.headers.get('content-type') || 'image/jpeg').split(';')[0];
-    if (!type.startsWith('image/')) throw new Error(`非图片: ${type}`);
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length < 2048) throw new Error('图片过小，疑似防盗链占位');
-    const ext = type.includes('png') ? 'png' : type.includes('webp') ? 'webp' : 'jpg';
-    const form = new FormData();
-    form.append('files', new Blob([buf], { type }), `${name}.${ext}`);
-    const up = await fetch(`${CFG.strapiUrl}/api/upload`, {
-      method: 'POST', headers: { Authorization: `Bearer ${CFG.strapiToken}` }, body: form,
-    });
-    const json = await up.json();
-    if (!up.ok) throw new Error(`upload ${up.status}: ${JSON.stringify(json.error || '').slice(0, 100)}`);
-    const f = json[0];
-    return f?.id ? { id: f.id, url: f.url, width: f.width, height: f.height } : null;
-  } catch (e) {
-    console.warn(`[warn] 图片采集失败(${e.message}): ${String(url).slice(0, 80)}`);
-    return null;
-  }
-}
+const { request: strapi, fetchAllPages, uploadMedia } = createStrapi({ url: CFG.strapiUrl, token: CFG.strapiToken });
 
 async function uploadCover(url, name) {
   const m = await uploadMedia(url, name);
@@ -458,24 +347,6 @@ async function uploadTitleCard(title, slug, channelName) {
 }
 
 // ---------- Strapi REST ----------
-async function strapi(path, opts = {}) {
-  const res = await fetch(`${CFG.strapiUrl}/api${path}`, {
-    ...opts,
-    headers: { Authorization: `Bearer ${CFG.strapiToken}`, 'Content-Type': 'application/json', ...opts.headers },
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Strapi ${opts.method || 'GET'} ${path} → ${res.status}: ${JSON.stringify(json.error || json).slice(0, 200)}`);
-  return json;
-}
-
-async function fetchAllPages(path, qs = '') {
-  const out = [];
-  for (let page = 1; ; page++) {
-    const json = await strapi(`${path}?pagination[page]=${page}&pagination[pageSize]=100${qs}`);
-    out.push(...json.data);
-    if (page >= (json.meta?.pagination?.pageCount || 1)) return out;
-  }
-}
 
 // ---------- prompts ----------
 const CHANNELS_DESC = [
@@ -797,9 +668,6 @@ const DEFAULT_WRITE_PROMPT = `【角色】
 只输出 JSON，不要任何其他文字。注意：content 里的换行必须转义为 \\n；标题和正文中一律使用中文引号「」或书名号《》，禁止出现英文双引号字符，确保整体是合法 JSON：
 {"facts":["事实1 [来源]","事实2 [来源]"],"outline":["小标题1","小标题2"],"title":"...","slug":"...","summary":"...","content":"markdown正文","tags":[{"name":"...","slug":"..."}],"seo":{"metaTitle":"...","metaDescription":"...","keywords":"..."}}`;
 
-function render(tpl, vars) {
-  return tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '');
-}
 
 // ---------- 套话自检（prompt 约束不够硬，出稿后再机器校一遍）----------
 const BODY_BANS = [
@@ -832,27 +700,10 @@ const HEDGE_LIMIT = {
   '判断，不是': 0,
 };
 
-// 标点归一化：模型偶尔在中文句子里混用半角标点（现存文章里 59 篇有此问题）。
-// 只在「前后都是中日韩汉字」时替换，避免误伤英文、代码、URL、数字。
-function normalizePunct(s) {
-  return String(s || '')
-    .replace(/([一-龥])\s*,\s*([一-龥])/g, '$1，$2')
-    .replace(/([一-龥])\s*;\s*([一-龥])/g, '$1；$2')
-    .replace(/([一-龥])\s*:\s*([一-龥])/g, '$1：$2')
-    .replace(/([一-龥])\s*!\s*/g, '$1！')
-    .replace(/([一-龥])\s*\?\s*/g, '$1？');
-}
-
 // ---------- 近重复守卫 ----------
 // 热榜同一事件换个说法会二次上榜，指纹去重（按标题原文）挡不住；
 // 2026-07-27 实际出现过「痞幼…能自证吗」与「痞幼…经得起求证吗」两篇几乎同题。
 // 这里用字符二元组 Jaccard 相似度，跟近期已发标题比一遍。
-function bigrams(s) {
-  const t = String(s || '').replace(/[\s\p{P}\p{S}]/gu, '');
-  const out = new Set();
-  for (let i = 0; i < t.length - 1; i++) out.add(t.slice(i, i + 2));
-  return out;
-}
 
 // 体裁模板词：由 WRITE_STYLES 的「标题写法」批量生产，与事件本身无关。
 // 留在串里会制造两类错判：① 两篇毫不相干的文章仅凭同一个后缀就被判重复
@@ -864,13 +715,7 @@ function stripTpl(s) {
   return String(s || '').replace(TITLE_TPL, '');
 }
 
-function similarity(a, b) {
-  const A = bigrams(a); const B = bigrams(b);
-  if (!A.size || !B.size) return 0;
-  let inter = 0;
-  for (const x of A) if (B.has(x)) inter += 1;
-  return inter / (A.size + B.size - inter);
-}
+const similarity = bigramJaccard;
 // 阈值 0.15（剥模板词之后）：用全量 376 条历史标题重新跑过分布。
 // 旧口径（原始标题 + 0.30）实测只抓到 6% 的真重复——因为 writePrompt 会把「最近已用写法」
 // 注入禁令，主动逼模型把标题写得不像，守卫等于在跟提示词对着干。
@@ -1083,25 +928,6 @@ async function fixMetaDescription(art) {
     }
   }
   return false;
-}
-
-// 前台渲染器（apps/web/lib/markdown.tsx）不支持的块级语法里，能无损去掉的直接去掉：
-// 分隔线删行、引用块去掉「>」前缀、代码块去掉围栏保留内容。表格没法机械转换（转成列表会丢列关系），
-// 留给 lint 触发重写，重写后还有就转草稿（见 main 里的 markupBlocked）。
-function stripUnsupportedMarkup(content) {
-  return String(content || '')
-    .split('\n')
-    .filter((l) => !/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(l) && !/^\s*```/.test(l))
-    .map((l) => l.replace(/^(\s*)>\s?/, '$1'))
-    .join('\n');
-}
-const TABLE_RE = /^\s*\|.*\|\s*$/m;
-
-// 与 apps/cms/src/api/sensitive-word/services 保持一致：内置兜底词 + 后台启用词，扫标题+正文，忽略大小写
-const SENSITIVE_BUILTIN = ['敏感词测试', 'badword', '违禁示例'];
-function scanSensitive(words, art) {
-  const text = `${art.title || ''}\n${art.content || ''}`.toLowerCase();
-  return words.filter((w) => w && text.includes(w.toLowerCase()));
 }
 
 // 内链白名单校验：把不在候选集内的链接降级为纯文本（宁可没有内链，也不要 404 内链）
