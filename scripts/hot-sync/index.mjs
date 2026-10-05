@@ -67,6 +67,8 @@ const LIMIT = Number(arg('limit', 5));
 const DRY = argv.includes('--dry-run');
 // 把后台「热榜二创配置」的 prompt 强制刷成脚本内置新版（旧值备份进 note 字段）
 const UPGRADE_PROMPT = argv.includes('--upgrade-prompt');
+// 本轮直接用脚本内置 prompt，不读也不写后台——改完默认 prompt 后配合 --dry-run 试跑用
+const LOCAL_PROMPT = argv.includes('--local-prompt');
 // 只跑站内主题盘点补位（跳过热榜）——手动验证补位逻辑时用。
 // 补位盘点默认不再自动触发（见 3b），这是唯一能让它跑起来的入口。
 const FILL_ONLY = argv.includes('--fill-only');
@@ -498,11 +500,11 @@ const WRITE_STYLES = [
     role: '你是擅长把一团乱麻的瓜按时间轴捋顺的资讯编辑，读者看你的稿子是为了「一次搞清楚事情怎么走到今天」。',
     structure: [
       '导语 2~3 句：一句话说清「现在到哪一步了」，不铺垫不抒情',
-      '用 3~5 个时间点做小标题（如「7月20日 事情起头」「7月26日 当事人发声」），按时间顺序还原，每段 150~250 字',
-      '末段「目前进展」：写清最新状态 + 还没有定论的部分',
+      '用素材里真有的时间点做小标题（如「7月20日 事情起头」「7月26日 当事人发声」），按时间顺序还原；时间点少就少分几节',
+      '末段「目前进展」：写清最新状态；素材里有明确的下一个节点（开庭、上映、复赛、通报时限）就点出来',
     ],
     title: '突出「始末 / 来龙去脉 / 时间线 / 几天几变」，让人一眼知道这是一篇捋清楚的稿',
-    ending: '以「目前进展 + 还没落定的事」收尾，不许提问、不许喊话读者',
+    ending: '停在最新的确定事实上；有明确的下一个时间节点就点出来，没有就不写「后续」，不许提问、不许喊话读者',
     bans: '时间点必须来自素材；素材没给具体日期的，写「此前」「近日」，禁止编造精确日期',
   },
   {
@@ -551,12 +553,12 @@ const WRITE_STYLES = [
     role: '你是面向读者答疑的编辑，把读者点进来最想问的问题一个个答掉。',
     structure: [
       '导语 2 句：这事为什么被问得最多',
-      '用 4~5 个问句做小标题（如「XX 到底怎么回事？」「有官方说法吗？」），每问 120~220 字作答',
-      '最后一问固定是「哪些还没有答案？」',
+      '用 3~5 个问句做小标题（如「XX 到底怎么回事？」「有官方说法吗？」），只问素材答得出的问题，每问答实',
+      '最后一问优先问「这事跟普通人有什么关系」或「接下来看什么」，素材撑不起就不设这一问',
     ],
     title: '可用疑问句，但禁止「网友吵翻了」式尾巴',
-    ending: '以「还没有答案的部分」收尾',
-    bans: '每个问题都要挑素材真答得出的来问——答不出来就换一个能答的问题，不要摆一堆「目前没有公开信息」凑数；确实关键又无解的，全篇最多留一个放在最后',
+    ending: '以最后一问的答案收尾，不另写总结',
+    bans: '每个问题都要挑素材真答得出的来问——答不出来就换一个能答的问题，不要摆一堆「目前没有公开信息」凑数',
   },
   {
     key: 'deepdig', name: '深扒起底', channels: ['star', 'influencer', 'inside', 'oversea'],
@@ -594,7 +596,7 @@ const WRITE_STYLES = [
       '「当事人和围观者的反应」',
     ],
     title: '突出画面本身，动词开头，禁止「太魔性」「这一幕」等已用滥的词',
-    ending: '以「这段画面之所以传开」收尾',
+    ending: '收在这段内容为什么被转发上，用自己的话说',
     bans: '只描述素材里出现过的画面；不得虚构动作、台词、表情和现场对话',
   },
   {
@@ -649,7 +651,8 @@ const WRITE_STYLES = [
   {
     key: 'cohort', name: '一代人切片', channels: ['star', 'influencer', 'sports', 'oversea', 'society'],
     // 必须真的是一批人/一类现象，单人单事套上去会硬凑同类案例
-    requires: /一代|这批|群体|们|集体|多位|多名|接连|纷纷|扎堆|花|生|顶流|中生代|新人|前辈|同期/,
+    // 单字「们/花/生」会误中「学生」「花钱」「我们」——2026-10-05 dry-run 把「游客住高校宿舍」单事件判进了本体裁
+    requires: /一代|这批|群体|集体|多位|多名|接连|纷纷|扎堆|\d{2}(花|后)|小花|小生|新生代|中生代|顶流们|新人|前辈|同期/,
     role: '你是做群体现象观察的编辑，擅长从一个人身上看出一批人的共同处境。',
     structure: [
       '从眼下这个具体的人或事切入，1 段说清',
@@ -684,12 +687,12 @@ const WRITE_STYLES = [
 // 全局禁令（a02「禁止清单优于笼统要求」）：把已经写滥的套路点名禁掉
 const GLOBAL_BANS = [
   '结尾禁止向读者提问或喊话：「你怎么看」「你觉得呢」「评论区聊聊」「欢迎留言」「一起吃瓜」全部禁用——按本篇体裁指定的方式收尾',
-  '「据网友讨论」「网传消息称」两个短语全篇各最多出现 1 次；其余归因请换着说：有网友翻出、评论区里、这两天的讨论集中在、多个平台的说法是、目前公开的信息只到、爆料帖里提到',
+  '「据网友讨论」「网传消息称」两个短语全篇各最多出现 1 次；其余归因请换着说：有网友翻出、评论区里、这两天的讨论集中在、多个平台的说法是、爆料帖里提到',
   '标题禁用这些已经用滥的词：网友吵翻了、引热议、网友直呼、全网围观、太魔性、炸了、你敢信、这一幕、意想不到',
   '禁止 AI 腔：不仅…而且、值得注意的是、总的来说、总的来看、综合来看、综上所述、纵观…、在这个…的时代、让我们、首先/其次/最后 的三段式、无实义的排比句',
   '禁止自称：本文、笔者、小编、我们编辑部',
   '句子要短，多用口语的短句；不要每段都用「其实」「说白了」「不得不说」开头',
-  '正文里不要出现「梳理一下」「先来看看」这类流程性套话，直接进入内容',
+  '正文里不要出现「梳理一下」「先来看看」这类流程性套话，直接进入内容；导语不以「近日」「据悉」「日前」「最近」开头',
   '排版只用这几种 markdown：## 小标题、「- 」无序列表、「1. 」有序列表、**加粗**、[链接](路径)；禁止表格（| 竖线 |）、引用块（>）、分隔线（---）、代码块——前台不支持，会显示成乱码',
   '不要反复声明信息缺失：「具体数据未公开」「素材未提及」「查无实据」「暂无更多信息」这类交代全篇最多 1 次；素材里没有的东西直接不写，换能写的角度展开，别把「我没有资料」写成内容',
 ].map((s, i) => `${i + 1}. ${s}`).join('\n');
@@ -707,6 +710,7 @@ const DEFAULT_PICK_PROMPT = `你是吃瓜资讯站「今日吃瓜」的选题编
 - 只选「吃瓜向」：明星/网红/影视综艺/社会趣闻/体育人物/海外热点/情感话题等大众娱乐谈资
 - 必须排除：时政、政府政策、领导人、军事外交、民族宗教、重大灾难伤亡、疫情防控等严肃或敏感议题
 - 同一事件在多个榜单出现的，合并为一个选题（refs 列出所有相关编号）
+- 素材厚度：补充说明为「-」的条目只有一行标题，单独写不出有信息量的稿子。只有在同一事件另有带补充说明的条目可以合并时才选，否则跳过——宁可少选
 - 【避免重复选题·最重要】每个选题必须给出 eventKey：该事件的稳定标识，用「核心当事人/作品 + 核心动作」概括成 4~12 个汉字，不带任何情绪词和角度词。
   例：「詹姆斯加盟76人」「李权哲高铁占座」「菲尔兹奖2026」「正颌手术做反」。
   同一件事无论从哪个角度写、无论出现在哪个榜单，eventKey 都必须完全一致；
@@ -727,36 +731,53 @@ const DEFAULT_PICK_PROMPT = `你是吃瓜资讯站「今日吃瓜」的选题编
 
 const DEFAULT_WRITE_PROMPT = `【角色】
 {{styleRole}}
-你在为吃瓜资讯站「今日吃瓜」供稿，读者是刷手机看热闹的普通网友。
+你在为吃瓜资讯站「今日吃瓜」供稿，读者是刷手机看热闹的普通网友。他们已经在热榜上看过标题，点进来是想多知道点东西。
 
 【任务】
-用下面的素材写一篇原创短资讯，体裁为「{{styleName}}」，正文 900~1500 字。
+用下面的素材写一篇原创资讯，体裁为「{{styleName}}」，正文 {{length}} 字。篇幅跟着素材走：料少就写短写实，宁短勿水。
 
 选题：{{topic}}
 切入角度：{{angle}}
-
-【素材】（唯一事实依据，素材之外的一切细节都不许写）
+{{followUp}}
+【素材】（唯一事实依据，素材之外的具体人和事一律不写）
 {{refs}}
 
-【结构】本篇必须按「{{styleName}}」的骨架写，不要套用其他体裁：
+【动笔前】先在 facts 字段里把素材拆成事实清单，每条一句话、末尾注明出自哪条素材（如「[微博热搜]」）：
+- 谁、何时、何地、发生了什么、结果如何、各方怎么说
+- 不同素材说法对不上的，单列一条「说法不一」，把两边都记下来
+正文只能用这份清单里的事实。清单里没有的东西，正文里也不该出现。
+
+【这篇要给读者什么】
+- 导语一句话交代核心事实：谁、做了什么或遇到了什么、结果怎样。不以「近日」「据悉」「日前」「最近」开头，不铺垫。
+- 不按素材顺序逐条改写。按「最新进展 → 关键细节 → 来龙去脉」重新组织，读者最想知道的放最前面。
+- 写出比热榜标题多的东西：这事是怎么来的、为什么现在被讨论、跟普通人有什么关系、和同类事情比有什么不同——只挑素材撑得起的写，撑不起就不写。
+- 事实和判断分开。转述事实就平实地说；编辑自己的判断要让读者看得出是判断，用「从时间线看」「这意味着」「换句话说」这类自然的说法带出来，不要写「这是编辑的判断」「以下是判断」这种声明句；判断要有依据，可以有观点，但不定性、不定罪。
+- 关键事实交代出处，用自然的说法带出来（如「微博热搜词条的说法是」「知乎热榜的问题描述里提到」），不要在句尾堆括号批注。
+- 几个来源说法不一致的，如实写「A 的说法是……，B 则称……」，不替任何一方裁决。
+- 当事人原话：素材里有的，原样放进「」并写明是谁说的，引号里一个字都不改；拿不准原话的就改成转述，不加引号。
+- 专业名词、圈内说法第一次出现时，用半句话解释清楚。只解释概念本身，不借机补充本事件素材里没有的细节。
+
+【结构】按「{{styleName}}」的骨架写，不要套用其他体裁：
 {{styleStructure}}
 - 标题写法：{{styleTitle}}
 - 收尾方式：{{styleEnding}}
+骨架是方向不是模板：某一节素材撑不起就合并或跳过，不要为了凑齐小节去写空话。骨架和收尾方式里加引号的词只是示意，用自己的话写出那个意思，不要原样抄成句子或小标题。
 
 【约束】
-- 事实纪律（最重要）：只依据上面素材成文；素材没有的具体人名/数字/时间/引语一律不得编造；不诽谤、不定罪、不替当事人下结论，争议事件中立转述。
-  注意分寸：不编造 ≠ 要反复声明缺什么。素材没有的内容直接不写、换个角度展开即可，关键的未证实信息全篇标一次就够，不要句句交代「素材未提及」「数据未公开」——那本身就是新的套话
+- 事实纪律（最重要）：素材没有的具体人名、数字、时间、引语一律不得编造；不诽谤、不定罪，争议事件中立转述。
+  注意分寸：不编造 ≠ 要反复声明缺什么。素材没有的内容直接不写，关键的未证实信息全篇标一次就够；不要写「素材未提及」「数据未公开」「仍待回应」这类话——那是另一种套话。
 - 本体裁专属禁令：{{styleBans}}
 - 全局禁令（违反任意一条都算不合格）：
 {{bans}}
 - 最近已经发过的写法如下，本篇的标题句式和开头必须与它们明显不同：
 {{recent}}
-- 语气像朋友聊天，但不低俗、不油腻；移动端短段落，每段不超过 4 行
-- 正文必须用「## 小标题」分段，至少 2 个；outline 里列的小标题要真的写进正文，不能只列不写
-- 正文中必须自然嵌入 2~3 条站内链接，markdown 格式：[锚文本](/频道/slug)
+- 读起来要像人写的：长短句交替，段落有长有短，可以单句成段；打散整齐的排比和「一二三」式的对仗；保留有信息量的判断，不要磨成四平八稳的中性话；不写总结段。
+- 语气像懂行的朋友在聊，不低俗、不油腻；移动端短段落，每段不超过 4 行。
+- 正文用「## 小标题」分段，至少 2 个；小标题写具体信息（如「10月3日晚的那条动态」），不用「事件经过」「网友热议」这类空标题。outline 里列的小标题要真的写进正文。
+- 正文中自然嵌入 2~3 条站内链接，markdown 格式：[锚文本](/频道/slug)
   · 路径**只能**从下面「可链接文章」里原样复制，一个字符都不能改，严禁自己编造路径
-  · 锚文本要是句子里的自然短语（如「此前那起校园争议」），禁止「点击这里」「查看详情」这类空锚文本
-  · 链接放在正文语义相关处，不要堆在结尾
+  · 锚文本是句子里的自然短语（如「此前那起校园争议」），禁止「点击这里」「查看详情」
+  · 链接放在语义相关处，不要堆在结尾
   可链接文章（路径必须原样复制）：
 {{links}}
 {{faqBlock}}
@@ -765,16 +786,16 @@ const DEFAULT_WRITE_PROMPT = `【角色】
 - tags：3~5 个，name 中文、slug 英文小写连字符。**必须优先从下面「可复用标签库」里选**，尽量全部命中；标签要用「可跨事件复用的话题词/品类词」(如 明星、恋情、塌房、综艺、体育)，**不要用一次性的具体人名或单一事件词做标签**(如 某某某、某活动名)——那会产生只有一篇的孤岛标签页。最多只允许出现 1 个库里没有的新标签，且该新标签也必须是能被后续文章复用的通用词。
   可复用标签库(优先复用)：{{taglib}}
 - seo.metaTitle ≤60 字符
-- seo.metaDescription **70~90 个汉字**（这是搜索结果里的摘要位，超过约 90 字会被截断）：一句话交代事件核心与看点，自然融入关键词；只写已知事实，不要写「未提及」「仍待回应」这类交代缺失信息的话
+- seo.metaDescription **70~90 个汉字**（这是搜索结果里的摘要位，超过约 90 字会被截断）：一句话交代事件核心与看点，自然融入关键词；只写已知事实，不卖关子，不写交代缺失信息的话
 - seo.keywords 逗号分隔 3~5 个中文词
-- 标题 ≤40 字，吸引点击但不夸张失实
+- 标题 ≤30 字，核心关键词（人名/作品/事件）放在前半段；可以有看点，但不夸张失实、不做标题党
 
 【格式】
-先在 outline 字段里按上面的结构列出本篇的小标题草案（3~5 条），再照着它写 content——先列后写，不要边想边写。
-首段必须自然出现 seo.keywords 的第一个关键词，但不要为塞词而生硬。
+先写 facts，再在 outline 里列小标题草案（2~5 条，按素材多少定），最后照着写 content——先拆事实、再列提纲、最后成文。
+首段自然出现 seo.keywords 的第一个关键词，不要为塞词而生硬。
 
 只输出 JSON，不要任何其他文字。注意：content 里的换行必须转义为 \\n；标题和正文中一律使用中文引号「」或书名号《》，禁止出现英文双引号字符，确保整体是合法 JSON：
-{"outline":["小标题1","小标题2"],"title":"...","slug":"...","summary":"...","content":"markdown正文","tags":[{"name":"...","slug":"..."}],"seo":{"metaTitle":"...","metaDescription":"...","keywords":"..."}}`;
+{"facts":["事实1 [来源]","事实2 [来源]"],"outline":["小标题1","小标题2"],"title":"...","slug":"...","summary":"...","content":"markdown正文","tags":[{"name":"...","slug":"..."}],"seo":{"metaTitle":"...","metaDescription":"...","keywords":"..."}}`;
 
 function render(tpl, vars) {
   return tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '');
@@ -803,6 +824,12 @@ const HEDGE_LIMIT = {
   查无实据: 1,
   暂无更多信息: 1,
   没有公开信息: 2,
+  // 2026-10-05 对照试跑暴露：前者是旧禁令里推荐的替代说法，后者是「明示判断」被照字面执行
+  公开的信息只到: 0,
+  编辑的判断: 0,
+  以下是判断: 0,
+  这是判断: 0,
+  '判断，不是': 0,
 };
 
 // 标点归一化：模型偶尔在中文句子里混用半角标点（现存文章里 59 篇有此问题）。
@@ -962,6 +989,28 @@ function dropCoveredPicks(picks, covered) {
   return out;
 }
 
+// 数字核对（替代人工「改动自查」）：正文里出现的数字必须能在素材里找到。
+// 只查 ≥10 的数、小数和百分比——个位数多是「三件事」「第 2 次」这类叙述用语，误报多于收益。
+// 允许来源：素材标题/摘要、选题/角度/新进展、内链候选标题（锚文本可能引用它们），以及今年/去年年份。
+function lintFacts(art, sel, refs, links = []) {
+  const year = new Date().getFullYear();
+  const allowed = [
+    ...refs.map((r) => `${r.title || ''} ${r.desc || ''}`),
+    sel.topic, sel.angle, sel.newDevelopment,
+    ...links.map((l) => l.title),
+    String(year), String(year - 1),
+  ].join(' ');
+  const known = new Set(allowed.match(/\d+(?:\.\d+)?/g) || []);
+  const body = String(art.content || '')
+    .replace(/\]\([^)]*\)/g, ']')        // 链接/图片地址
+    .replace(/^\s*\d+[.)]\s+/gm, '');      // 有序列表序号
+  const unknown = [...new Set(body.match(/\d+(?:\.\d+)?%?/g) || [])]
+    .map((x) => x.replace('%', ''))
+    .filter((x) => (Number(x) >= 10 || x.includes('.')) && !known.has(x));
+  if (!unknown.length) return [];
+  return [`正文出现素材里没有的数字：${unknown.slice(0, 6).join('、')}——素材没给的数字一律删掉或改成不带数字的说法`];
+}
+
 // SEO 结构自检（对齐 p045 发布后检查清单 + p108 修复后检查标准 + p111 FAQ）
 function lintSeo(art, style) {
   const v = [];
@@ -1117,6 +1166,9 @@ function lintStyle(art) {
   }
   const tm = t.match(TITLE_BANS);
   if (tm) v.push(`标题用了已写滥的词（「${tm[0]}」）`);
+  const lead = c.split('\n').map((s) => s.trim()).find((s) => s && !s.startsWith('#') && !s.startsWith('!')) || '';
+  const lm = lead.match(/^(近日|据悉|日前|最近|近期)/);
+  if (lm) v.push(`导语以「${lm[1]}」开头——第一句直接交代核心事实`);
   for (const [phrase, limit] of Object.entries(HEDGE_LIMIT)) {
     const n = (c.match(new RegExp(phrase, 'g')) || []).length;
     if (n > limit) v.push(`「${phrase}」出现 ${n} 次（上限 ${limit}）`);
@@ -1312,6 +1364,10 @@ const SEO_APPENDIX = `
 
 // 从后台「热榜二创配置」拉 prompt；字段为空则回填默认值（仅填空缺，不覆盖后台手改），读取失败回退内置
 async function loadPrompts() {
+  if (LOCAL_PROMPT) {
+    console.log('[cfg] --local-prompt：本轮使用脚本内置 prompt，不读写后台');
+    return { pick: DEFAULT_PICK_PROMPT, write: DEFAULT_WRITE_PROMPT };
+  }
   try {
     const res = await fetch(`${CFG.strapiUrl}/api/hot-sync-config`, {
       headers: { Authorization: `Bearer ${CFG.strapiToken}` },
@@ -1370,6 +1426,28 @@ function pickPrompt(prompts, topics, n, covered = []) {
   });
 }
 
+// 素材信息量：热榜条目只有「标题 + ≤120 字摘要」，微博/抖音/头条连摘要都没有。
+// 固定要 900~1500 字时，缺的那部分只能靠套话和「未公开」声明去填——篇幅改为跟着素材走。
+function materialChars(refs) {
+  return refs.reduce((n, r) => n + String(r.title || '').length + String(r.desc || '').length, 0);
+}
+function lengthFor(refs) {
+  const n = materialChars(refs);
+  if (n < 120) return '500~800';
+  if (n < 300) return '700~1100';
+  return '900~1400';
+}
+// FAQ 只在素材够用时要求：料少还硬凑 3~5 问，只会问出一串「目前没有公开信息」
+const FAQ_MIN_MATERIAL = 300;
+
+// 追更篇：把选题阶段判定的「新进展」交给成文，否则成文会把旧事从头再讲一遍
+function renderFollowUp(sel) {
+  if (!sel.followUp && !sel.prevPath) return '';
+  const nd = String(sel.newDevelopment || '').trim();
+  return `本篇是追更${sel.prevTitle ? `（前文《${sel.prevTitle}》）` : ''}：${nd ? `新进展是「${nd}」。` : ''}`
+    + '先写新进展本身，旧事用一两句带过并链回前文，不要把前文重写一遍。\n';
+}
+
 function writePrompt(prompts, sel, refs, tagLib = [], style, recent = [], links = []) {
   let tpl = prompts.write.includes('{{style') ? prompts.write : prompts.write + STYLE_APPENDIX;
   // 后台模板若是旧版（没有内链/FAQ 占位符），运行时补挂，保证改造对老配置也生效
@@ -1379,6 +1457,8 @@ function writePrompt(prompts, sel, refs, tagLib = [], style, recent = [], links 
     faqBlock: renderFaqBlock(style),
     topic: sel.topic,
     angle: sel.angle,
+    length: lengthFor(refs),
+    followUp: renderFollowUp(sel),
     refs: refs.map((r) => `- [${r.source}] ${r.title}${r.desc ? `：${r.desc}` : ''}`).join('\n'),
     taglib: tagLib.join('、'),
     styleName: style.name,
@@ -1471,12 +1551,20 @@ async function main() {
     // 补位选题的素材是站内文章本身；热榜选题的素材是榜单条目
     const refs = sel.kind === 'fill' ? sel.materials : (sel.refs || []).map((i) => fresh[i]).filter(Boolean);
     if (!refs.length) continue;
+    // 素材厚度兜底：全部条目都只有标题（微博/抖音/头条无摘要）时，成文只能围着标题打转。
+    // 不记 state.done——之后别的榜单带出补充说明时这个话题仍可再选。
+    if (sel.kind !== 'fill' && !refs.some((r) => String(r.desc || '').trim().length >= 20)) {
+      console.log(`[thin] 「${sel.topic}」素材只有标题（${materialChars(refs)} 字），跳过`);
+      continue;
+    }
     try {
       // 补位选题固定用「瓜串盘点」体裁——它就是为聚合多条内容设计的
       const style = sel.kind === 'fill'
         ? WRITE_STYLES.find((s) => s.key === 'roundup')
         : pickStyle(sel, state, usedStyles);
       usedStyles.add(style.key);
+      // 本篇实际用的体裁设定：素材太少时关掉 FAQ 要求（prompt 与 lintSeo 共用这一份，口径一致）
+      const wstyle = style.faq && materialChars(refs) < FAQ_MIN_MATERIAL ? { ...style, faq: false } : style;
       console.log(`[style] 「${sel.topic}」→ ${style.name}(${style.key})${sel.kind === 'fill' ? ' [站内补位]' : ''}`);
       // 补位篇：成员文章优先进内链候选，保证盘点能链回被盘的每一篇
       let linkCands = sel.kind === 'fill'
@@ -1489,12 +1577,13 @@ async function main() {
         linkCands = [{ title: sel.prevTitle || '此前的报道', path: sel.prevPath },
           ...linkCands.filter((c) => c.path !== sel.prevPath)];
       }
-      const basePrompt = writePrompt(prompts, sel, refs, tagLib, style, recentSignals, linkCands);
+      const basePrompt = writePrompt(prompts, sel, refs, tagLib, wstyle, recentSignals, linkCands);
       let art = await llmJSON(basePrompt, `成文「${sel.topic}」`);
       art.content = stripUnsupportedMarkup(art.content);
 
       // 套话自检 + SEO 结构自检：违规就带着违规清单重写一次
-      let violations = [...lintStyle(art), ...lintSeo(art, style)];
+      const lintAll = (a) => [...lintStyle(a), ...lintSeo(a, wstyle), ...lintFacts(a, sel, refs, linkCands)];
+      let violations = lintAll(art);
       if (violations.length) {
         console.warn(`[lint] 「${sel.topic}」命中 ${violations.length} 条套话，重写一次：${violations.join('；')}`);
         try {
@@ -1503,7 +1592,7 @@ async function main() {
             `重写「${sel.topic}」`,
           );
           retry.content = stripUnsupportedMarkup(retry.content);
-          const v2 = [...lintStyle(retry), ...lintSeo(retry, style)];
+          const v2 = lintAll(retry);
           if (v2.length < violations.length) { art = retry; violations = v2; }
         } catch (e) {
           console.warn(`[lint] 重写失败，沿用初稿: ${e.message.slice(0, 80)}`);
@@ -1719,6 +1808,12 @@ async function main() {
         console.log(`      小标题：${(art.outline || []).join(' / ') || '(未输出 outline)'}`);
         console.log(`      开头：${(body.find((s) => !s.startsWith('#')) || '').slice(0, 50)}…`);
         console.log(`      结尾：…${(body[body.length - 1] || '').slice(-50)}`);
+        // DRY_DUMP=<目录>：把整篇产出（含 facts 清单与素材）落盘，便于人工比对改 prompt 前后的效果
+        if (process.env.DRY_DUMP) {
+          mkdirSync(process.env.DRY_DUMP, { recursive: true });
+          writeFileSync(join(process.env.DRY_DUMP, `${slug || 'draft'}.json`),
+            JSON.stringify({ style: wstyle.key, length: lengthFor(refs), refs, violations, ...art }, null, 2));
+        }
       } else {
         // 标签先于文章创建（POST 文章时要带 documentId），文章这一步失败就会留下孤儿标签，
         // 所以失败时把本篇刚建的新标签删掉再把错抛回去。
