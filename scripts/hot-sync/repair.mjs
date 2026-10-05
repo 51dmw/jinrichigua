@@ -7,7 +7,7 @@
  *
  * 两个阶段，刻意分开——能不调 LLM 的绝不调，省下配额给产稿：
  *   phase a（零 LLM，可全量跑）：
- *     · metaDescription 补到 120~160 字（现状 100% 短于 120，均值 58）
+ *     · metaDescription 补到 70~100 字（中文摘要位约 80 字，120~160 是英文字符口径，2026-10-05 下调）
  *     · 正文补 2~3 条站内内链（现状 0/252 篇有内链）
  *   phase b（每篇 1 次 LLM，分批跑）：
  *     · 给没有小标题的正文加 ## 小标题
@@ -45,8 +45,8 @@ const PHASE = arg('phase', 'a');
 const LIMIT = Number(arg('limit', 50));
 const DRY = argv.includes('--dry-run');
 
-const DESC_MIN = 120;
-const DESC_MAX = 160;
+const DESC_MIN = 70;
+const DESC_MAX = 100;
 const LINKS_TARGET = 3;
 
 async function api(path, opts = {}) {
@@ -82,7 +82,7 @@ function plain(md) {
 }
 
 /**
- * 生成 120~160 字描述：优先用 summary 起头，再从正文续接，按句号断句。
+ * 生成 DESC_MIN~DESC_MAX 字描述：优先用 summary 起头，再从正文续接，按句号断句。
  * 不调 LLM——描述本质是正文首要信息的浓缩，截取即可，没必要花配额。
  */
 function buildDescription(summary, content) {
@@ -101,7 +101,7 @@ function buildDescription(summary, content) {
   }
   if (out.length >= DESC_MIN) return out;
 
-  // 完整句子拼不到 120 字：补到最近的一个逗号/顿号停顿处，别停在词中间
+  // 完整句子拼不到 DESC_MIN 字：补到最近的一个逗号/顿号停顿处，别停在词中间
   const rest = parts.slice(out.length, DESC_MAX);
   const cut = Math.max(rest.lastIndexOf('，'), rest.lastIndexOf(','), rest.lastIndexOf('、'));
   return (out + (cut > 0 ? rest.slice(0, cut) : rest)).trim();

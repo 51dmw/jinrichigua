@@ -414,7 +414,7 @@ async function uploadMedia(url, name) {
     const json = await up.json();
     if (!up.ok) throw new Error(`upload ${up.status}: ${JSON.stringify(json.error || '').slice(0, 100)}`);
     const f = json[0];
-    return f?.id ? { id: f.id, url: f.url } : null;
+    return f?.id ? { id: f.id, url: f.url, width: f.width, height: f.height } : null;
   } catch (e) {
     console.warn(`[warn] 图片采集失败(${e.message}): ${String(url).slice(0, 80)}`);
     return null;
@@ -765,7 +765,7 @@ const DEFAULT_WRITE_PROMPT = `【角色】
 - tags：3~5 个，name 中文、slug 英文小写连字符。**必须优先从下面「可复用标签库」里选**，尽量全部命中；标签要用「可跨事件复用的话题词/品类词」(如 明星、恋情、塌房、综艺、体育)，**不要用一次性的具体人名或单一事件词做标签**(如 某某某、某活动名)——那会产生只有一篇的孤岛标签页。最多只允许出现 1 个库里没有的新标签，且该新标签也必须是能被后续文章复用的通用词。
   可复用标签库(优先复用)：{{taglib}}
 - seo.metaTitle ≤60 字符
-- seo.metaDescription **120~160 字符**（少于 120 字视为不合格——这是搜索结果里的摘要位，要写满，自然融入关键词）
+- seo.metaDescription **70~90 个汉字**（这是搜索结果里的摘要位，超过约 90 字会被截断）：一句话交代事件核心与看点，自然融入关键词；只写已知事实，不要写「未提及」「仍待回应」这类交代缺失信息的话
 - seo.keywords 逗号分隔 3~5 个中文词
 - 标题 ≤40 字，吸引点击但不夸张失实
 
@@ -984,22 +984,46 @@ function lintSeo(art, style) {
   return v;
 }
 
-const META_MIN = 120;
-const META_MAX = 160;
+// 中文搜索结果摘要位大约只显示 80 字上下，120~160 是英文字符口径，套到汉字上后半截全被截断，
+// 模型为凑字数还会补「未提及/仍待回应」式尾巴。目标 70~90 字，100 字为硬上限。
+const META_MIN = 70;
+const META_MAX = 100;
 function metaDescLen(art) {
   return String(art.seo?.metaDescription || '').length;
 }
 
-// metaDescription 偏短时只补写这一个字段，不动正文。最多试 2 次，仍不达标就保留原值（不阻塞发布）。
+// 交代「缺什么信息」的句子：放在摘要位里是纯套话（见项目 CLAUDE.md 内容口径）
+const META_HEDGE = /未提及|并未(展开|说明|透露|公布|回应)|尚未(回应|公布|说明|透露)|仍待|有待|暂未|暂无|尚不清楚|不做推测|仍要看|目前都还没有/;
+
+// 零 LLM 整理：去掉套话句，按句末标点截到 META_MAX 以内。截不出 META_MIN 就原样返回，交给补写。
+function tidyMetaDescription(desc) {
+  const d = String(desc || '').trim();
+  const segs = d.split(/(?<=[。！？!?])/).map((s) => s.trim()).filter(Boolean);
+  let out = '';
+  for (const s of segs) {
+    if (META_HEDGE.test(s)) continue;
+    if (out.length + s.length > META_MAX) break;
+    out += s;
+  }
+  return out.length >= META_MIN ? out : d;
+}
+
+function metaDescOk(d) {
+  const s = String(d || '');
+  return s.length >= META_MIN && s.length <= META_MAX && !META_HEDGE.test(s);
+}
+
+// metaDescription 不达标时只补写这一个字段，不动正文。最多试 2 次，仍不达标就保留原值（不阻塞发布）。
 async function fixMetaDescription(art) {
   const body = String(art.content || '').replace(/[#*\[\]()!]/g, '').replace(/\n+/g, ' ').slice(0, 1200);
   for (let i = 1; i <= 2; i++) {
     try {
-      const r = await llmJSON(`为下面这篇资讯写一段搜索结果摘要（meta description）：130~150 个汉字，一段话，`
-        + `只依据正文事实，不编造，自然带上关键词「${String(art.seo?.keywords || '').split(/[,，]/)[0] || ''}」，不要复读标题。\n\n`
+      const r = await llmJSON(`为下面这篇资讯写一段搜索结果摘要（meta description）：70~90 个汉字，一段话，`
+        + `只依据正文事实，不编造，自然带上关键词「${String(art.seo?.keywords || '').split(/[,，]/)[0] || ''}」，不要复读标题。`
+        + `只写已知的事实和看点，不要写交代信息缺失的句子（如「未提及」「仍待回应」「暂未公布」）。\n\n`
         + `标题：${art.title}\n正文：${body}\n\n只输出 JSON：{"metaDescription":"..."}`, `补写摘要「${art.title}」`);
-      const d = normalizePunct(String(r?.metaDescription || '').trim());
-      if (d.length >= META_MIN && d.length <= META_MAX) {
+      const d = tidyMetaDescription(normalizePunct(String(r?.metaDescription || '').trim()));
+      if (metaDescOk(d)) {
         art.seo = { ...(art.seo || {}), metaDescription: d };
         return true;
       }
@@ -1284,7 +1308,7 @@ const SEO_APPENDIX = `
   可链接文章：
 {{links}}
 {{faqBlock}}
-- seo.metaDescription 120~160 字符（少于 120 视为不合格）；seo.keywords 3~5 个`;
+- seo.metaDescription 70~90 个汉字（以本条为准，覆盖上文任何其他长度要求），不写交代缺失信息的话；seo.keywords 3~5 个`;
 
 // 从后台「热榜二创配置」拉 prompt；字段为空则回填默认值（仅填空缺，不覆盖后台手改），读取失败回退内置
 async function loadPrompts() {
@@ -1486,10 +1510,17 @@ async function main() {
         }
       }
 
-      if (metaDescLen(art) < META_MIN) {
+      if (art.seo?.metaDescription) {
+        const tidied = tidyMetaDescription(art.seo.metaDescription);
+        if (tidied !== art.seo.metaDescription) {
+          console.log(`[meta] 「${sel.topic}」摘要整理 ${metaDescLen(art)} → ${tidied.length} 字`);
+          art.seo = { ...art.seo, metaDescription: tidied };
+        }
+      }
+      if (!metaDescOk(art.seo?.metaDescription)) {
         const before = metaDescLen(art);
         if (await fixMetaDescription(art)) console.log(`[meta] 「${sel.topic}」摘要补写 ${before} → ${metaDescLen(art)} 字`);
-        else violations.push(`metaDescription 过短（${metaDescLen(art)} 字，需 ${META_MIN}~${META_MAX}）`);
+        else violations.push(`metaDescription 不达标（${metaDescLen(art)} 字，需 ${META_MIN}~${META_MAX} 且无套话）`);
       }
       // 表格前台渲染不了，重写后仍有就不自动发布，留草稿人工处理
       const markupBlocked = TABLE_RE.test(String(art.content || ''));
@@ -1635,19 +1666,25 @@ async function main() {
         const blocks = art.content.split('\n').filter((l) => l.trim());
         // 每张图至少隔 2 段，短文少放，免得几张图挤成一串
         const cap = Math.min(MAX_INLINE_IMAGES, Math.max(1, Math.floor((blocks.length - 2) / 2)));
-        const spare = [...new Set(refs.map((r) => r.cover).filter((u) => u && u !== coverSrc))];
-        const urls = [];
-        for (const u of spare) {
-          if (urls.length >= cap) break;
-          const media = await uploadMedia(u, `${slug}-inline-${urls.length + 1}`);
-          if (media?.url) urls.push(media.url);
+        // alt 用图片所属热榜条目的标题（描述的是这张图本身），不再统一填文章标题——那会和封面 alt 重复
+        const spare = [];
+        for (const r of refs) {
+          if (r.cover && r.cover !== coverSrc && !spare.some((x) => x.src === r.cover)) spare.push({ src: r.cover, alt: r.title || art.title });
         }
-        if (urls.length) {
+        const imgs = [];
+        for (const s of spare) {
+          if (imgs.length >= cap) break;
+          const media = await uploadMedia(s.src, `${slug}-inline-${imgs.length + 1}`);
+          if (media?.url) imgs.push({ ...media, alt: s.alt });
+        }
+        if (imgs.length) {
+          // 尺寸写进 markdown 图片 title（"宽x高"），前台据此输出 width/height 预留位置，避免懒加载时版面跳动
+          const md = (m) => `![${String(m.alt).replace(/[[\]()]/g, '')}](${m.url}${m.width && m.height ? ` "${m.width}x${m.height}"` : ''})`;
           // 第 i 张放在 (i+1)/(n+1) 处，不早于第 2 段；从后往前插，前面的下标不受影响
-          const at = urls.map((_, i) => Math.max(2, Math.floor((blocks.length * (i + 1)) / (urls.length + 1))));
-          for (let i = urls.length - 1; i >= 0; i--) blocks.splice(at[i], 0, `![${art.title}](${urls[i]})`);
+          const at = imgs.map((_, i) => Math.max(2, Math.floor((blocks.length * (i + 1)) / (imgs.length + 1))));
+          for (let i = imgs.length - 1; i >= 0; i--) blocks.splice(at[i], 0, md(imgs[i]));
           art.content = blocks.join('\n\n');
-          console.log(`[img] 「${sel.topic}」正文插图 ${urls.length} 张`);
+          console.log(`[img] 「${sel.topic}」正文插图 ${imgs.length} 张`);
         }
       }
 

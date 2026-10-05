@@ -284,17 +284,40 @@ export async function getArticlesByMonth(
   }
 }
 
-/** 有文章的标签 slug（供 sitemap 用——空标签不入站点地图，避免 404 链接 + 薄内容）。 */
-export async function getAllTagSlugs(): Promise<string[]> {
+/**
+ * 标签 sitemap 条目：按已发布文章统计每个标签的篇数与最新 updatedAt，只收 ≥ minArticles 篇的标签
+ * （1~2 篇的标签页是薄内容，不主动提交）。
+ * 从文章侧翻页统计而非查 /tags：`filters[articles][documentId][$notNull]` 会漏掉约 1/6 有已发布文章的标签
+ * （2026-10-05 实测 426 个只返回 352 个），旧实现还只取了第一页 200 条。
+ */
+export async function getTagSitemapEntries(
+  minArticles = 3,
+): Promise<{ slug: string; lastmod?: string }[]> {
+  const stats = new Map<string, { count: number; lastmod?: string }>();
   try {
-    const json = await strapiGet<StrapiListResponse<{ slug: string }>>(
-      `/tags?fields[0]=slug&filters[articles][documentId][$notNull]=true&pagination[pageSize]=200`,
-      { tags: ['tags'] },
-    );
-    return (json.data ?? []).map((t) => t.slug);
+    for (let page = 1; ; page++) {
+      const json = await strapiGet<StrapiListResponse<Article>>(
+        `/articles?fields[0]=updatedAt&populate[tags][fields][0]=slug` +
+          `&sort[0]=updatedAt:desc&pagination[page]=${page}&pagination[pageSize]=500`,
+        { tags: [TAGS.articles, 'tags'], revalidate: 300 },
+      );
+      for (const a of json.data ?? []) {
+        for (const t of a.tags ?? []) {
+          if (!t?.slug) continue;
+          const s = stats.get(t.slug);
+          // 已按 updatedAt 倒序，首次出现即该标签最新
+          if (s) s.count += 1;
+          else stats.set(t.slug, { count: 1, lastmod: a.updatedAt });
+        }
+      }
+      if (page >= (json.meta?.pagination?.pageCount ?? 1)) break;
+    }
   } catch {
     return [];
   }
+  return [...stats]
+    .filter(([, s]) => s.count >= minArticles)
+    .map(([slug, s]) => ({ slug, lastmod: s.lastmod }));
 }
 
 export async function getArticleBySlug(

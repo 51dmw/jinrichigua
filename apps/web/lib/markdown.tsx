@@ -63,12 +63,21 @@ export function renderArticleMarkdown(md: string): ReactNode[] {
     if (!line) return;
 
     // 独立成行的图片
-    const img = line.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/);
+    // 可选 title 为「宽x高」（热榜管线插图时写入），用于输出 width/height 预留版面
+    const img = line.match(/^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"(\d+)x(\d+)")?\)$/);
     if (img && EXTERNAL_URL.test(img[2])) {
       flushList();
       out.push(
         // eslint-disable-next-line @next/next/no-img-element -- 正文配图尺寸不定，不走 next/image
-        <img key={`img-${i}`} src={img[2]} alt={img[1] || ''} loading="lazy" decoding="async" />,
+        <img
+          key={`img-${i}`}
+          src={img[2]}
+          alt={img[1] || ''}
+          width={img[3] ? Number(img[3]) : undefined}
+          height={img[4] ? Number(img[4]) : undefined}
+          loading="lazy"
+          decoding="async"
+        />,
       );
       return;
     }
