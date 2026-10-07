@@ -193,7 +193,9 @@ async function main() {
       // 阶段 a 会在文末追加「## 相关阅读」，它不算正文结构——判断前先切掉
       const bodyOnly = String(a.content || '').split(/\n##+ 相关阅读/)[0];
       const hasHeads = (bodyOnly.match(/^##+ /gm) || []).length >= 2;
-      const hasQuestionEnd = /(你怎么看|你觉得呢|你怎么想|评论区(聊聊|见|等你|说说)|欢迎留言)/.test(a.content || '');
+      // 只看正文最后两段：正文中间引用这类说法（如分析「你觉得呢」式提问）不算提问收尾
+      const tail = bodyOnly.trim().split(/\n\s*\n/).slice(-2).join('\n');
+      const hasQuestionEnd = /(你怎么看|你觉得呢|你怎么想|评论区(聊聊|见|等你|说说)|欢迎留言)/.test(tail);
       if (!hasHeads || hasQuestionEnd) {
         const fixed = (await callClaude(REPAIR_PROMPT(a))).replace(/```[a-z]*\n?/g, '').trim();
         // 安全阀：结构修复不该让正文大幅缩水，缩水超过 15% 视为模型跑偏，弃用
