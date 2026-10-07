@@ -39,8 +39,9 @@
 | `jrcg-web` | `next start -H 127.0.0.1 -p 3100` | `apps/web` | 常驻，Nginx 上游 |
 | `jrcg-hot-sync` | `scripts/hot-sync/index.mjs --limit 7` | `scripts/hot-sync` | `cron_restart: 15 */2 * * *`，跑完即退 |
 | `jrcg-repair` | `scripts/hot-sync/repair.mjs --phase b --limit 12` | 仓库根 | `cron_restart: 45 */2 * * *`，跑完即退 |
+| `jrcg-collect` | `scripts/collect/index.mjs` | 仓库根 | `cron_restart: */15 * * * *`，跑完即退。采集工作台：处理后台「试抓」请求 + 到点的已启用采集源（各源间隔在后台配）；只入采集草稿池，不发文章。调用明细在 `scripts/collect/logs/` |
 
-后两个是定时任务型进程，**平时 `pm2 list` 显示 `stopped` 是正常的**——到点由 PM2 拉起，
+后三个是定时任务型进程，**平时 `pm2 list` 显示 `stopped` 是正常的**——到点由 PM2 拉起，
 跑完自己退出。看到 stopped 不要手动 `pm2 restart` 去"修"它。
 
 开机自启：`systemd` 单元 `pm2-root` 已 enabled，进程列表存在 `~/.pm2/dump.pm2`。
