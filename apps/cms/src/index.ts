@@ -1100,6 +1100,27 @@ export default {
           handler: 'api::tag.tag.bulkCreate',
           config: { policies: [] },
         },
+        {
+          // 采集草稿「采纳」按钮（生成 reviewState=pending 的文章草稿）
+          method: 'POST',
+          path: '/collect-item-adopt/:documentId',
+          handler: 'api::collect-item.collect-item.adopt',
+          config: { policies: [] },
+        },
+        {
+          // 采集草稿「退回」按钮（body: { reason }）
+          method: 'POST',
+          path: '/collect-item-reject/:documentId',
+          handler: 'api::collect-item.collect-item.reject',
+          config: { policies: [] },
+        },
+        {
+          // 采集源「试抓一条」按钮
+          method: 'POST',
+          path: '/collect-source-test/:documentId',
+          handler: 'api::collect-source.collect-source.requestTest',
+          config: { policies: [] },
+        },
       ],
     });
   },

@@ -64,4 +64,21 @@ export default factories.createCoreController(UID, ({ strapi }) => ({
 
     ctx.body = { data: { article: article.documentId, slug }, message: '已采纳，已生成待审核文章' };
   },
+
+  /**
+   * 退回：必须写原因。原因是编辑反馈，后续学习阶段会据此整理候选知识，所以不允许空着。
+   */
+  async reject(ctx) {
+    const { documentId } = ctx.params;
+    const reason = String((ctx.request as any).body?.reason ?? '').trim();
+    if (!reason) return ctx.badRequest('请填写退回原因');
+    const item: any = await strapi.documents(UID).findOne({ documentId, fields: ['state'] } as any);
+    if (!item) return ctx.notFound('采集草稿不存在');
+    if (item.state === 'adopted') return ctx.conflict('已采纳的条目不能退回，请到文章里处理');
+    await strapi.documents(UID).update({
+      documentId,
+      data: { state: 'rejected', rejectReason: reason.slice(0, 1000) } as any,
+    });
+    ctx.body = { data: { state: 'rejected' }, message: '已退回' };
+  },
 }));

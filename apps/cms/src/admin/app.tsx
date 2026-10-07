@@ -5,7 +5,8 @@
  *    （键取自 @strapi/content-manager 的 en 字典，前缀 `content-manager.`）。
  *    仅覆盖显示文案，不影响字段名/接口/数据。
  * 3) 文章编辑页加「自动匹配标签」Document Action 按钮；
- * 4) 左侧菜单加「批量添加标签」自定义页面。
+ * 4) 左侧菜单加「批量添加标签」自定义页面；
+ * 5) 采集工作台：采集草稿页「采纳 / 退回」、采集源页「试抓一条」侧栏按钮。
  */
 import * as React from 'react';
 import { useFetchClient, useNotification, useField } from '@strapi/strapi/admin';
@@ -91,6 +92,98 @@ const AutoTagPanel = ({ model, documentId }: { model?: string; documentId?: stri
   return {
     title: '标签',
     content: React.createElement(AutoTagButton, { documentId }),
+  };
+};
+
+const COLLECT_ITEM_UID = 'api::collect-item.collect-item';
+const COLLECT_SOURCE_UID = 'api::collect-source.collect-source';
+
+const COLLECT_STATE_LABELS: Record<string, string> = {
+  pending: '待处理', adopted: '已采纳', rejected: '已退回', merged: '已合并',
+  failed: '失败', unmatched: '无匹配', thin: '素材不足',
+};
+
+// 调 admin 路由的通用按钮：确认 → POST → 提示 → 成功后刷新（让表单显示新状态）。
+const AdminPostButton = ({
+  path, label, confirmText, body, variant = 'secondary', disabled = false,
+}: {
+  path: string; label: string; confirmText?: string; body?: () => Record<string, unknown> | null;
+  variant?: string; disabled?: boolean;
+}) => {
+  const { post } = useFetchClient();
+  const { toggleNotification } = useNotification();
+  const [loading, setLoading] = React.useState(false);
+
+  const onClick = async () => {
+    if (confirmText && !window.confirm(confirmText)) return;
+    const payload = body ? body() : {};
+    if (payload === null) return; // body() 返回 null 表示用户取消
+    setLoading(true);
+    try {
+      const { data } = await post(path, payload);
+      toggleNotification({ type: 'success', message: data?.message || '操作成功' });
+      window.location.reload();
+    } catch (e: any) {
+      const msg = e?.response?.data?.error?.message || '操作失败';
+      toggleNotification({ type: 'danger', message: msg });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return React.createElement(
+    Button,
+    { onClick, loading, disabled: disabled || loading, variant, fullWidth: true },
+    label,
+  );
+};
+
+/**
+ * 采集草稿编辑页侧栏：「采纳」「退回」。
+ * 采纳生成的文章一律是待审核状态（见 collect-item controller），不会被定时发布自动发出。
+ */
+const CollectItemPanel = ({ model, documentId, document }: { model?: string; documentId?: string; document?: any }) => {
+  if (model !== COLLECT_ITEM_UID || !documentId) return null;
+  const state = document?.state as string | undefined;
+  const hasDraft = Array.isArray(document?.processed) && document.processed.length > 0;
+  const done = state === 'adopted';
+  return {
+    title: `采集草稿 · ${COLLECT_STATE_LABELS[state || ''] || state || ''}`,
+    content: React.createElement(
+      'div',
+      { style: { display: 'grid', gap: 8, width: '100%' } },
+      React.createElement(AdminPostButton, {
+        path: `/collect-item-adopt/${documentId}`,
+        label: '采纳为文章',
+        variant: 'default',
+        disabled: done || !hasDraft,
+        confirmText: '用最新一版成文生成文章草稿（待审核状态，不会自动发布）。\n频道、标签、配图请到文章里补齐后再提交审核。继续？',
+      }),
+      React.createElement(AdminPostButton, {
+        path: `/collect-item-reject/${documentId}`,
+        label: '退回',
+        variant: 'danger-light',
+        disabled: done || state === 'rejected',
+        body: () => {
+          const reason = window.prompt('退回原因（必填，系统会据此学习）：', '');
+          if (reason === null) return null;
+          return { reason };
+        },
+      }),
+    ),
+  };
+};
+
+/** 采集源编辑页侧栏：「试抓一条」。脚本下一轮（15 分钟内）处理，结果写回「试抓结果」。 */
+const CollectSourcePanel = ({ model, documentId }: { model?: string; documentId?: string }) => {
+  if (model !== COLLECT_SOURCE_UID || !documentId) return null;
+  return {
+    title: '采集',
+    content: React.createElement(AdminPostButton, {
+      path: `/collect-source-test/${documentId}`,
+      label: '试抓一条',
+      confirmText: '请求采集脚本试抓一条（只抓取，不调模型、不入池）。15 分钟内刷新本页查看「试抓结果」。继续？',
+    }),
   };
 };
 
@@ -939,6 +1032,8 @@ export default {
     app.getPlugin('content-manager').apis.addEditViewSidePanel((panels: any[]) => [
       ...panels,
       AutoTagPanel,
+      CollectItemPanel,
+      CollectSourcePanel,
     ]);
   },
 };

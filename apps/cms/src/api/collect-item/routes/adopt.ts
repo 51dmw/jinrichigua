@@ -7,5 +7,11 @@ export default {
       handler: 'collect-item.adopt',
       config: { policies: [] },
     },
+    {
+      method: 'POST',
+      path: '/collect-items/:documentId/reject',
+      handler: 'collect-item.reject',
+      config: { policies: [] },
+    },
   ],
 };

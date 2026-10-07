@@ -14,13 +14,13 @@
 // adopt them (adoption creates an article with reviewState=pending).
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { loadEnvFile } from '../lib/env.mjs';
 import { createStrapi } from '../lib/strapi.mjs';
 import { createLock } from '../lib/lock.mjs';
 import { callOpenAICompat, llmJSON } from '../lib/llm.mjs';
-import { render, normalizePunct, stripUnsupportedMarkup } from '../lib/text.mjs';
+import { render, normalizePunct, stripUnsupportedMarkup, bigramJaccard } from '../lib/text.mjs';
 import { safeGet } from './lib/safe-fetch.mjs';
 import { parseRobots, robotsAllows, robotsCrawlDelay } from './lib/robots.mjs';
 import { parseSitemap, parseRss, filterByPath, normalizeUrl } from './lib/discover.mjs';
@@ -153,6 +153,52 @@ async function existingUrls(urls) {
   return known;
 }
 
+// ── near-duplicate titles & expiry ───────────────────────────────────────────
+
+// Bigram Jaccard on raw titles, same 0.15 as hot-sync. Measured 2026-10-07 on 13 zaobao titles vs the
+// latest 300 articles: unrelated pairs 0.00–0.07; the same topic seen from another angle (「奔县游」)
+// only 0.09, which no string metric will catch. This mainly stops an outlet's own re-posts.
+const DUP_THRESHOLD = 0.15;
+const RETENTION_DAYS = 30;
+// rejected items are kept: their reasons are the editor feedback the learning phase will use
+const EXPIRING_STATES = ['thin', 'unmatched', 'failed', 'merged'];
+
+async function loadTitlePool() {
+  const since = new Date(Date.now() - RETENTION_DAYS * 86400e3).toISOString();
+  const items = await strapi.fetchAllPages('/collect-items', `&filters[createdAt][$gte]=${since}&fields[0]=title`);
+  const pool = items.filter((i) => i.title).map((i) => ({ kind: '采集条目', documentId: i.documentId, title: i.title }));
+  for (let page = 1; page <= 3; page++) {
+    const json = await strapi.request(`/articles?sort=createdAt:desc&pagination[page]=${page}&pagination[pageSize]=100&fields[0]=title`);
+    pool.push(...json.data.map((a) => ({ kind: '文章', documentId: a.documentId, title: a.title })));
+    if (page >= (json.meta?.pagination?.pageCount || 1)) break;
+  }
+  return pool;
+}
+
+function findDuplicate(title, pool) {
+  let best = null;
+  for (const p of pool) {
+    const score = bigramJaccard(title, p.title);
+    if (score >= DUP_THRESHOLD && (!best || score > best.score)) best = { ...p, score };
+  }
+  return best;
+}
+
+async function cleanupExpired() {
+  const cutoff = new Date(Date.now() - RETENTION_DAYS * 86400e3).toISOString();
+  const states = EXPIRING_STATES.map((s, i) => `filters[state][$in][${i}]=${s}`).join('&');
+  const json = await strapi.request(`/collect-items?filters[createdAt][$lt]=${cutoff}&${states}&fields[0]=state&pagination[pageSize]=100`);
+  for (const d of json.data) await strapi.request(`/collect-items/${d.documentId}`, { method: 'DELETE' });
+  try {
+    const oldest = new Date(Date.now() + 8 * 3600e3 - RETENTION_DAYS * 86400e3).toISOString().slice(0, 10);
+    for (const f of readdirSync(LOG_DIR)) {
+      const day = f.match(/^calls-(\d{4}-\d{2}-\d{2})\.jsonl$/)?.[1];
+      if (day && day < oldest) rmSync(join(LOG_DIR, f));
+    }
+  } catch { /* no log dir yet */ }
+  return json.data.length;
+}
+
 // ── model calls ──────────────────────────────────────────────────────────────
 
 const LOG_DIR = join(DIR, 'logs');
@@ -245,7 +291,7 @@ function cleanTitle(s) {
 const connect = (documentId) => ({ connect: [{ documentId }] });
 const sys = (msg) => `[系统] ${msg}`; // rejectReason written by the pipeline, not by an editor
 
-async function processEntry({ source, entry, categories, prompts, providerNames, config, callStage }) {
+async function processEntry({ source, entry, categories, prompts, providerNames, config, callStage, titlePool }) {
   const promptUsed = {};
   const base = {
     source: connect(source.documentId),
@@ -260,6 +306,11 @@ async function processEntry({ source, entry, categories, prompts, providerNames,
   };
 
   if (!entry.title) return save({ state: 'thin', rejectReason: sys('没有取到标题') });
+  const dup = findDuplicate(entry.title, titlePool);
+  titlePool.push({ kind: '采集条目', documentId: null, title: entry.title }); // later items in this run see it too
+  if (dup) {
+    return save({ state: 'merged', similarTo: `${dup.kind} ${dup.documentId || '（本轮）'}「${dup.title}」相似度 ${dup.score.toFixed(2)}`.slice(0, 250) });
+  }
   const thin = config.thinThreshold ?? 100;
   if (`${entry.title}${entry.summary || ''}`.length < thin) {
     return save({ state: 'thin', rejectReason: sys(`标题加摘要不足 ${thin} 字，素材太薄`) });
@@ -370,6 +421,8 @@ function isDue(s) {
 }
 
 async function runAll() {
+  const removed = await cleanupExpired();
+  if (removed) console.log(`[collect] 清理过期条目 ${removed} 条`);
   const sources = await strapi.fetchAllPages('/collect-sources');
   const tests = sources.filter((s) => s.testRequestedAt);
   let due;
@@ -413,6 +466,7 @@ async function runAll() {
     budget.limit = config.dailyCallLimit ?? 500;
     budget.used = await callsToday();
     const callStage = createStageCaller(config, budget);
+    const titlePool = await loadTitlePool();
 
     for (const s of due) {
       const st = { discovered: 0, afterFilter: 0, fresh: 0, states: {}, skipped: 0 };
@@ -434,7 +488,7 @@ async function runAll() {
             if (!(err instanceof RobotsError)) errors.push(`${s.name} 抽取失败：${err.message.slice(0, 200)}`);
             continue;
           }
-          const state = await processEntry({ source: s, entry, categories, prompts, providerNames, config, callStage });
+          const state = await processEntry({ source: s, entry, categories, prompts, providerNames, config, callStage, titlePool });
           st.states[state] = (st.states[state] || 0) + 1;
           console.log(`  [${state}] ${entry.title}`);
         }
