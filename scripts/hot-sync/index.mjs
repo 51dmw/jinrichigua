@@ -622,7 +622,7 @@ const DEFAULT_WRITE_PROMPT = `【角色】
 - 导语一句话交代核心事实：谁、做了什么或遇到了什么、结果怎样。不以「近日」「据悉」「日前」「最近」开头，不铺垫。
 - 不按素材顺序逐条改写。按「最新进展 → 关键细节 → 来龙去脉」重新组织，读者最想知道的放最前面。
 - 写出比热榜标题多的东西：这事是怎么来的、为什么现在被讨论、跟普通人有什么关系、和同类事情比有什么不同——只挑素材撑得起的写，撑不起就不写。
-- 事实和判断分开。转述事实就平实地说；编辑自己的判断用「从时间线看」「这意味着」「换句话说」这类说法起头，读者自然看得出是判断；判断写完直接接下一句，不必再补一句说明它的性质。判断要有依据，可以有观点，但不定性、不定罪。
+- 转述事实就平实地说。自己的分析用「从时间线看」「这意味着」「换句话说」这类说法起头，起头之后直接说观点本身，说完接着往下写。分析要有依据，可以有观点，但不定性、不定罪。
 - 关键事实交代出处，用自然的说法带出来（如「微博热搜词条的说法是」「知乎热榜的问题描述里提到」），不要在句尾堆括号批注。
 - 几个来源说法不一致的，如实写「A 的说法是……，B 则称……」，不替任何一方裁决。
 - 当事人原话：素材里有的，原样放进「」并写明是谁说的，引号里一个字都不改；拿不准原话的就改成转述，不加引号。
@@ -642,7 +642,7 @@ const DEFAULT_WRITE_PROMPT = `【角色】
 {{bans}}
 - 最近已经发过的写法如下，本篇的标题句式和开头必须与它们明显不同：
 {{recent}}
-- 读起来要像人写的：长短句交替，段落有长有短，可以单句成段；打散整齐的排比和「一二三」式的对仗；保留有信息量的判断，不要磨成四平八稳的中性话；不写总结段。
+- 读起来要像人写的：长短句交替，段落有长有短，可以单句成段；打散整齐的排比和「一二三」式的对仗；保留有信息量的观点，不要磨成四平八稳的中性话；不写总结段。
 - 语气像懂行的朋友在聊，不低俗、不油腻；移动端短段落，每段不超过 4 行。
 - 正文用「## 小标题」分段，至少 2 个；小标题写具体信息（如「10月3日晚的那条动态」），不用「事件经过」「网友热议」这类空标题。outline 里列的小标题要真的写进正文。
 - 正文中自然嵌入 2~3 条站内链接，markdown 格式：[锚文本](/频道/slug)
@@ -1439,6 +1439,8 @@ async function main() {
       }
       // 表格前台渲染不了，重写后仍有就不自动发布，留草稿人工处理
       const markupBlocked = TABLE_RE.test(String(art.content || ''));
+      // 重写后仍有素材里查不到的数字：可能是编造，不自动发布，留草稿人工核对
+      const factBlocked = lintFacts(art, sel, refs, linkCands).length > 0;
 
       // 标点归一化（中文句内的半角标点）
       art.title = normalizePunct(art.title);
@@ -1605,7 +1607,7 @@ async function main() {
 
       // 自动发布仅限「频道映射成功 + 无前台渲染不了的表格」的文章；否则留草稿 pending 人工审
       // （敏感词命中的上面已经改写或放弃，走到这里的都是干净的）
-      const publish = AUTO_PUBLISH && !markupBlocked && !!channel;
+      const publish = AUTO_PUBLISH && !markupBlocked && !factBlocked && !!channel;
 
       // 文末导流外链：只给直接发布的文章、占当天额度。放在配图插入之后，免得多出的段落把配图位置往后推
       if (publish && outboundLeft > 0) {
@@ -1623,6 +1625,7 @@ async function main() {
         publishAt: publish ? new Date().toISOString() : undefined,
         reviewNote: [
           markupBlocked ? '⚠️ 正文含 markdown 表格（前台不支持），已转草稿：改成「- 」列表后再发布' : '',
+          factBlocked ? '⚠️ 正文有素材里查不到的数字，已转草稿：核实出处或删掉后再发布' : '',
           violations.length ? `📝 套话自检未通过（已重写仍残留）：${violations.join('；')}` : '',
         ].filter(Boolean).join('\n') || undefined,
         seo: art.seo ? { metaTitle: (art.seo.metaTitle || '').slice(0, 70), metaDescription: (art.seo.metaDescription || '').slice(0, 160), keywords: art.seo.keywords } : undefined,
@@ -1655,7 +1658,7 @@ async function main() {
           }
           throw e;
         }
-        console.log(`[save] ${publish ? '已发布' : '草稿'} ✓ ${art.title} /${sel.channelSlug}/${slug} (${created.data.documentId})${markupBlocked ? ' ⚠️含表格→草稿' : ''}`);
+        console.log(`[save] ${publish ? '已发布' : '草稿'} ✓ ${art.title} /${sel.channelSlug}/${slug} (${created.data.documentId})${markupBlocked ? ' ⚠️含表格→草稿' : ''}${factBlocked ? ' ⚠️数字待核→草稿' : ''}`);
         if (sel.kind === 'fill') {
           // 同一标签 FILL_COOLDOWN_DAYS 天内不再盘第二次
           state.fills = [...(state.fills || []), { tag: sel.tag, at: new Date().toISOString() }].slice(-60);
