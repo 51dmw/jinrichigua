@@ -58,3 +58,5 @@ scripts/hot-sync/.run.lock
 scripts/hot-sync/out.json
 scripts/hot-sync/content_final.txt
 scripts/hot-sync/.backfill-cache*.json
+scripts/collect/.run.lock
+scripts/collect/logs/
