@@ -921,7 +921,8 @@ async function fixMetaDescription(art) {
         art.seo = { ...(art.seo || {}), metaDescription: d };
         return true;
       }
-      console.warn(`[meta] 「${art.title}」补写第 ${i} 次长度 ${d.length}，不达标`);
+      const why = META_HEDGE.test(d) ? `含套话「${d.match(META_HEDGE)[0]}」` : `需 ${META_MIN}~${META_MAX}`;
+      console.warn(`[meta] 「${art.title}」补写第 ${i} 次长度 ${d.length}，不达标（${why}）`);
     } catch (e) {
       if (e.message.startsWith('RATE_LIMIT')) throw e;
       console.warn(`[meta] 补写失败: ${e.message.slice(0, 80)}`);
