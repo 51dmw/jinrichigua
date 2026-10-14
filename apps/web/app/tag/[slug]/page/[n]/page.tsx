@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { TagView, tagMeta } from '@/components/TagView';
 
 export const revalidate = 120;
@@ -22,6 +22,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 export default async function TagPagedPage({ params }: { params: Params }) {
   const { slug, n } = await params;
+  // /page/1 与第 1 页重复 → 永久跳回规范地址
+  if (n === '1') permanentRedirect(`/tag/${slug}`);
   const page = parsePage(n);
   if (page === null) notFound();
   return <TagView slug={slug} page={page} />;

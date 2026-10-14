@@ -17,8 +17,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const global = await getGlobal();
   return resolveMetadata({
     global,
-    fallbackTitle: '吃瓜热榜',
-    fallbackDescription: '实时更新，一榜尽览今日全网吃瓜热点与热搜。',
+    fallbackTitle: '吃瓜热榜 - 今日全网热搜吃瓜事件排行',
+    fallbackDescription:
+      '今日吃瓜热榜：按站内阅读热度排行，一榜看尽明星娱乐、网红达人、社会大瓜等' +
+      '全网热搜吃瓜事件，点进每条可查看事件始末与最新进展。',
     path: '/hot',
   });
 }

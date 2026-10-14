@@ -12,8 +12,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const global = await getGlobal();
   return resolveMetadata({
     global,
-    fallbackTitle: '文章归档',
-    fallbackDescription: '按年月浏览今日吃瓜的全部历史文章。',
+    fallbackTitle: '文章归档 - 按月份浏览历史吃瓜文章',
+    fallbackDescription:
+      '今日吃瓜文章归档：按年月浏览站内全部历史文章，覆盖明星娱乐、网红达人、社会大瓜、' +
+      '爆料内幕等频道，方便回溯热点事件的来龙去脉与后续进展。',
     path: '/archive',
   });
 }

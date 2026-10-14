@@ -284,6 +284,9 @@ export async function getArticlesByMonth(
   }
 }
 
+/** 标签页可收录的最少文章数：低于此值的标签页 noindex,follow，也不进 sitemap（两处口径一致）。 */
+export const TAG_MIN_INDEX_ARTICLES = 3;
+
 /**
  * 标签 sitemap 条目：按已发布文章统计每个标签的篇数与最新 updatedAt，只收 ≥ minArticles 篇的标签
  * （1~2 篇的标签页是薄内容，不主动提交）。
@@ -291,7 +294,7 @@ export async function getArticlesByMonth(
  * （2026-10-05 实测 426 个只返回 352 个），旧实现还只取了第一页 200 条。
  */
 export async function getTagSitemapEntries(
-  minArticles = 3,
+  minArticles = TAG_MIN_INDEX_ARTICLES,
 ): Promise<{ slug: string; lastmod?: string }[]> {
   const stats = new Map<string, { count: number; lastmod?: string }>();
   try {

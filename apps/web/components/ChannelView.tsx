@@ -13,6 +13,29 @@ import { Pagination, pageHref, deepPageRobots } from './Pagination';
 
 export const CHANNEL_PAGE_SIZE = 20;
 
+/**
+ * 频道首页 SEO 标题（不含「 | 站名」后缀，由 titleTemplate 追加）。
+ * 后台 channel.seo.metaTitle 优先；这里按频道主题补核心词，避免只有「频道名 | 站名」11 个字。
+ * 新增频道没配时走 channelTitle() 的通用兜底。
+ */
+const CHANNEL_TITLES: Record<string, string> = {
+  star: '明星娱乐 - 明星绯闻、恋情、塌房与综艺八卦最新爆料',
+  influencer: '网红达人 - 主播博主翻车、撕番与带货内幕最新爆料',
+  society: '社会大瓜 - 民生热点、维权现场与奇葩新闻最新进展',
+  inside: '爆料内幕 - 行业黑幕与知情人爆料，事件来龙去脉梳理',
+  dirt: '黑料档案 - 人物黑历史与争议事件始末归档',
+  love: '情感婚恋 - 明星恋情、离婚出轨与豪门恩怨八卦',
+  sports: '体育吃瓜 - 球星绯闻、转会风波与赛场争议热点',
+  campus: '校园热议 - 高校趣闻、师生热点与考试升学话题',
+  oversea: '海外吃瓜 - 欧美日韩明星动态与国际名人八卦',
+  video: '吃瓜视频 - 热点事件现场视频与名场面回放',
+  history: '历史旧瓜 - 经典热搜事件回顾与名人往事盘点',
+};
+
+function channelTitle(slug: string, name: string): string {
+  return CHANNEL_TITLES[slug] ?? `${name} - 最新吃瓜热点与爆料汇总`;
+}
+
 /** 频道列表页 metadata（含分页标题 + 路径式 canonical 自指）。 */
 export async function channelMeta(channelSlug: string, page: number): Promise<Metadata> {
   const [channel, global, { total }] = await Promise.all([
@@ -25,8 +48,12 @@ export async function channelMeta(channelSlug: string, page: number): Promise<Me
   const meta = resolveMetadata({
     seo: channel.seo,
     global,
-    fallbackTitle: page > 1 ? `${channel.name} - 第 ${page} 页` : channel.name,
-    fallbackDescription: channel.description,
+    fallbackTitle: page > 1 ? `${channel.name} - 第 ${page} 页` : channelTitle(channel.slug, channel.name),
+    // 后台频道简介约 40 字，补一句栏目说明到 ~80 字；翻页加页码，避免与第 1 页 description 重复
+    fallbackDescription:
+      `${channel.description ?? `${channel.name}最新热点与爆料。`}` +
+      `本栏目按发布时间倒序收录全部${channel.name}文章，共 ${total} 篇，每日随全网热搜持续更新。` +
+      (page > 1 ? `（第 ${page} 页）` : ''),
     path: base,
     canonicalPath: pageHref(base, page),
     robots: deepPageRobots(page),
@@ -69,7 +96,9 @@ export async function ChannelView({ channelSlug, page }: { channelSlug: string; 
             base,
           )}
         />
-        <h1 className="mb-2 border-l-4 border-brand pl-2 text-lg font-bold">{channel.name}</h1>
+        <h1 className="mb-2 border-l-4 border-brand pl-2 text-lg font-bold">
+          {page > 1 ? `${channel.name} - 第 ${page} 页` : channel.name}
+        </h1>
 
         {/* 频道简介（SEO，仅第 1 页展示，避免分页重复） */}
         {channel.description && page === 1 ? (

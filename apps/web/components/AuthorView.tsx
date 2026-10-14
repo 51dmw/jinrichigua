@@ -15,7 +15,11 @@ import { SITE_URL } from '@/lib/env';
 export const AUTHOR_PAGE_SIZE = 20;
 
 export async function authorMeta(slug: string, page: number): Promise<Metadata> {
-  const [author, global] = await Promise.all([getAuthorBySlug(slug), getGlobal()]);
+  const [author, global, { total }] = await Promise.all([
+    getAuthorBySlug(slug),
+    getGlobal(),
+    getArticlesByAuthor(slug, 1, 1),
+  ]);
   if (!author) return {};
   const base = `/author/${slug}`;
   const title =
@@ -24,7 +28,11 @@ export async function authorMeta(slug: string, page: number): Promise<Metadata> 
     seo: author.seo,
     global,
     fallbackTitle: title,
-    fallbackDescription: author.bio,
+    // bio 约 45 字，补一句收录说明；翻页加页码，避免与第 1 页 description 重复
+    fallbackDescription:
+      `${author.bio ?? `${author.name}的全部文章。`}` +
+      `本页按发布时间倒序收录${author.name}在今日吃瓜发布的 ${total} 篇文章。` +
+      (page > 1 ? `（第 ${page} 页）` : ''),
     path: base,
     canonicalPath: pageHref(base, page),
     robots: deepPageRobots(page),
@@ -89,7 +97,9 @@ export async function AuthorView({ slug, page }: { slug: string; page: number })
           )}
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold text-gray-900">{author.name}</h1>
+              <h1 className="text-lg font-bold text-gray-900">
+                {page > 1 ? `${author.name} - 第 ${page} 页` : author.name}
+              </h1>
               {author.role ? (
                 <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
                   {author.role}

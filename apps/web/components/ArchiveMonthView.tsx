@@ -21,13 +21,20 @@ export function parseYearMonth(y: string, m: string): { year: number; month: num
 }
 
 export async function archiveMonthMeta(year: number, month: number, page: number): Promise<Metadata> {
-  const global = await getGlobal();
+  const [global, { total }] = await Promise.all([
+    getGlobal(),
+    getArticlesByMonth(year, month, 1, 1),
+  ]);
   const base = `/archive/${year}/${month}`;
   const label = `${year} 年 ${month} 月`;
   return resolveMetadata({
     global,
-    fallbackTitle: page > 1 ? `${label}文章归档 - 第 ${page} 页` : `${label}文章归档`,
-    fallbackDescription: `${label}发布的全部文章归档。`,
+    fallbackTitle:
+      page > 1 ? `${label}吃瓜文章归档 - 第 ${page} 页` : `${label}吃瓜文章归档 - 当月热点事件回顾`,
+    fallbackDescription:
+      `${label}今日吃瓜发布的全部文章，共 ${total} 篇，按发布时间倒序排列，` +
+      `可回溯当月明星娱乐、网红达人与社会热点事件的来龙去脉。` +
+      (page > 1 ? `（第 ${page} 页）` : ''),
     path: base,
     canonicalPath: pageHref(base, page),
   });
@@ -66,7 +73,9 @@ export async function ArchiveMonthView({
             base,
           )}
         />
-        <h1 className="mb-2 border-l-4 border-brand pl-2 text-lg font-bold">{label} · 文章归档</h1>
+        <h1 className="mb-2 border-l-4 border-brand pl-2 text-lg font-bold">
+          {label} · 文章归档{page > 1 ? ` - 第 ${page} 页` : ''}
+        </h1>
         <p className="mb-3 px-1 text-xs text-gray-500">共 {total} 篇</p>
 
         <div className="divide-y divide-gray-100 rounded-lg bg-white px-3">

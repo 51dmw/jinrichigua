@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getArticlesByTag, getGlobal, getTagBySlug } from '@/lib/strapi';
+import { getArticlesByTag, getGlobal, getTagBySlug, TAG_MIN_INDEX_ARTICLES } from '@/lib/strapi';
 import { resolveMetadata, itemListJsonLd } from '@/lib/seo';
 import { ArticleCard } from './ArticleCard';
 import { Breadcrumb } from './Breadcrumb';
@@ -13,7 +13,11 @@ import { TagCloud } from './TagCloud';
 export const TAG_PAGE_SIZE = 20;
 
 export async function tagMeta(slug: string, page: number): Promise<Metadata> {
-  const [tag, global] = await Promise.all([getTagBySlug(slug), getGlobal()]);
+  const [tag, global, { total }] = await Promise.all([
+    getTagBySlug(slug),
+    getGlobal(),
+    getArticlesByTag(slug, 1, 1),
+  ]);
   const base = `/tag/${slug}`;
   const name = tag?.name ?? slug;
   // 标签聚合页原本只有「标签名」当标题，加上模板后缀不到 10 字，核心词覆盖太窄。
@@ -21,13 +25,13 @@ export async function tagMeta(slug: string, page: number): Promise<Metadata> {
   // titleTemplate 的「 | 今日吃瓜」后缀）控制，所以标签名只出现一次，不重复堆砌。
   const fallbackTitle =
     page > 1
-      ? `${name}吃瓜爆料黑料汇总 - 第 ${page} 页`
+      ? `${name}最新吃瓜爆料 - 第 ${page} 页`
       : `${name}最新吃瓜爆料 - 黑料八卦事件全记录`;
   // 标签量大无法逐个填描述：无 tag.description 时用模板兜底，保证每个标签页都有独特 meta。
   const baseDescription =
     tag?.description ??
     `今日吃瓜${name}专题，汇总${name}的最新吃瓜爆料、黑料内幕、八卦绯闻与热搜事件：` +
-      `从事件起因、时间线梳理到当事人回应与网友热议，逐条追踪${name}相关的娱乐圈动态与最新进展。` +
+      `从事件起因、时间线梳理到当事人回应与网友热议，逐条追踪${name}相关动态与最新进展。` +
       `本页按时间倒序收录全部${name}相关文章，每日更新，想第一时间知道又出了什么新瓜，收藏本页持续跟进。`;
   return resolveMetadata({
     seo: tag?.seo,
@@ -38,7 +42,9 @@ export async function tagMeta(slug: string, page: number): Promise<Metadata> {
     fallbackKeywords: [name, `${name}吃瓜`, `${name}爆料`, `${name}黑料`, `${name}八卦`, '吃瓜爆料'],
     path: base,
     canonicalPath: pageHref(base, page),
-    robots: deepPageRobots(page),
+    // 薄标签（< 3 篇）与 sitemap 口径一致：可访问、链接照常传递，但不进索引
+    robots:
+      total < TAG_MIN_INDEX_ARTICLES ? { index: false, follow: true } : deepPageRobots(page),
   });
 }
 
@@ -70,7 +76,9 @@ export async function TagView({ slug, page }: { slug: string; page: number }) {
             base,
           )}
         />
-        <h1 className="mb-2 border-l-4 border-brand pl-2 text-lg font-bold">{name}</h1>
+        <h1 className="mb-2 border-l-4 border-brand pl-2 text-lg font-bold">
+          {page > 1 ? `${name} - 第 ${page} 页` : name}
+        </h1>
 
         {/* 标签简介（SEO：缓解聚合页薄内容） */}
         {tag.description ? (

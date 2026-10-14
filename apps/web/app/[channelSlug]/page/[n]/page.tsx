@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { ChannelView, channelMeta } from '@/components/ChannelView';
 
 export const revalidate = 120;
@@ -23,6 +23,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 export default async function ChannelPagedPage({ params }: { params: Params }) {
   const { channelSlug, n } = await params;
+  // /page/1 与第 1 页重复 → 永久跳回规范地址
+  if (n === '1') permanentRedirect(`/${channelSlug}`);
   const page = parsePage(n);
   if (page === null) notFound();
   return <ChannelView channelSlug={channelSlug} page={page} />;
