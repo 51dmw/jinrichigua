@@ -6,7 +6,7 @@ import { resolveMetadata, itemListJsonLd } from '@/lib/seo';
 import { ArticleCard } from './ArticleCard';
 import { Breadcrumb } from './Breadcrumb';
 import { JsonLd } from './JsonLd';
-import { Pagination, pageHref, MAX_LIST_PAGES } from './Pagination';
+import { Pagination, pageHref, deepPageRobots } from './Pagination';
 import { HotList } from './HotList';
 import { AdSlotBanner } from './AdSlotBanner';
 import { TagCloud } from './TagCloud';
@@ -27,11 +27,11 @@ export async function authorMeta(slug: string, page: number): Promise<Metadata> 
     fallbackDescription: author.bio,
     path: base,
     canonicalPath: pageHref(base, page),
+    robots: deepPageRobots(page),
   });
 }
 
 export async function AuthorView({ slug, page }: { slug: string; page: number }) {
-  if (page > MAX_LIST_PAGES) notFound(); // 翻页限深：与频道/标签一致（更早走归档/sitemap）
   const [author, { items, pageCount, total }] = await Promise.all([
     getAuthorBySlug(slug),
     getArticlesByAuthor(slug, page, AUTHOR_PAGE_SIZE),
@@ -124,7 +124,6 @@ export async function AuthorView({ slug, page }: { slug: string; page: number })
           page={page}
           pageCount={pageCount}
           total={total}
-          maxPages={MAX_LIST_PAGES}
         />
       </div>
 

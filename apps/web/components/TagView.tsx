@@ -5,7 +5,7 @@ import { resolveMetadata, itemListJsonLd } from '@/lib/seo';
 import { ArticleCard } from './ArticleCard';
 import { Breadcrumb } from './Breadcrumb';
 import { JsonLd } from './JsonLd';
-import { Pagination, pageHref, MAX_LIST_PAGES } from './Pagination';
+import { Pagination, pageHref, deepPageRobots } from './Pagination';
 import { HotList } from './HotList';
 import { AdSlotBanner } from './AdSlotBanner';
 import { TagCloud } from './TagCloud';
@@ -38,11 +38,11 @@ export async function tagMeta(slug: string, page: number): Promise<Metadata> {
     fallbackKeywords: [name, `${name}吃瓜`, `${name}爆料`, `${name}黑料`, `${name}八卦`, '吃瓜爆料'],
     path: base,
     canonicalPath: pageHref(base, page),
+    robots: deepPageRobots(page),
   });
 }
 
 export async function TagView({ slug, page }: { slug: string; page: number }) {
-  if (page > MAX_LIST_PAGES) notFound(); // 翻页限深：更早内容走归档/sitemap（参考凤凰网）
   const [tag, { items, pageCount, total }] = await Promise.all([
     getTagBySlug(slug),
     getArticlesByTag(slug, page, TAG_PAGE_SIZE),
@@ -101,7 +101,6 @@ export async function TagView({ slug, page }: { slug: string; page: number }) {
           page={page}
           pageCount={pageCount}
           total={total}
-          maxPages={MAX_LIST_PAGES}
         />
       </div>
 

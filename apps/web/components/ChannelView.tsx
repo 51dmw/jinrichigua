@@ -9,7 +9,7 @@ import { AdSlotBanner } from './AdSlotBanner';
 import { AdAnchor } from './AdAnchor';
 import { HotList } from './HotList';
 import { TagCloud } from './TagCloud';
-import { Pagination, pageHref, MAX_LIST_PAGES } from './Pagination';
+import { Pagination, pageHref, deepPageRobots } from './Pagination';
 
 export const CHANNEL_PAGE_SIZE = 20;
 
@@ -29,6 +29,7 @@ export async function channelMeta(channelSlug: string, page: number): Promise<Me
     fallbackDescription: channel.description,
     path: base,
     canonicalPath: pageHref(base, page),
+    robots: deepPageRobots(page),
   });
   // 空频道（无文章）→ noindex：频道是导航项，保留 200 可访问，但不收录薄内容
   if (total === 0) meta.robots = { index: false, follow: true };
@@ -37,7 +38,6 @@ export async function channelMeta(channelSlug: string, page: number): Promise<Me
 
 /** 频道列表页渲染（基础路由与 /page/[n] 共用）。 */
 export async function ChannelView({ channelSlug, page }: { channelSlug: string; page: number }) {
-  if (page > MAX_LIST_PAGES) notFound(); // 翻页限深：更早内容走归档/sitemap（参考凤凰网）
   const channel = await getChannelBySlug(channelSlug);
   if (!channel) notFound();
 
@@ -105,7 +105,6 @@ export async function ChannelView({ channelSlug, page }: { channelSlug: string; 
           page={page}
           pageCount={pageCount}
           total={total}
-          maxPages={MAX_LIST_PAGES}
         />
       </div>
 

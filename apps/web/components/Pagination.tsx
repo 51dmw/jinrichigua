@@ -1,10 +1,11 @@
 import Link from 'next/link';
 
-/**
- * 列表页翻页深度上限（频道/标签）：仅保留最新若干页，更深的薄长尾不生成、不收录
- * （参考凤凰网做法）；更早内容走「文章归档」+ sitemap 发现。
- */
-export const MAX_LIST_PAGES = 5;
+/** 列表页从第 N 页起 noindex,follow：深页可访问、链接照常传递，但不进索引。 */
+export const NOINDEX_FROM_PAGE = 6;
+
+export function deepPageRobots(page: number): { index: boolean; follow: boolean } | undefined {
+  return page >= NOINDEX_FROM_PAGE ? { index: false, follow: true } : undefined;
+}
 
 /** SEO 友好分页路径：第 1 页 = basePath；第 N(≥2) 页 = basePath/page/N（不带查询参数）。 */
 export function pageHref(basePath: string, page: number): string {
@@ -30,7 +31,7 @@ export function Pagination({
   total: number;
   /** 自定义每页链接（如搜索的 ?q=...&page=N 查询式分页）。优先于 basePath。 */
   hrefFor?: (page: number) => string;
-  /** 翻页深度上限（频道/标签传 MAX_LIST_PAGES）；超出不再出「下一页」。 */
+  /** 可选翻页深度上限；超出不再出「下一页」。 */
   maxPages?: number;
 }) {
   const effPageCount = maxPages ? Math.min(pageCount, maxPages) : pageCount;

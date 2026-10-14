@@ -77,4 +77,4 @@ Strapi 有定时发布 cron：`reviewState=approved` 的草稿每分钟自动重
 ## 六、SEO 相关
 
 规则落地点分散，改之前先看 `docs/seo-training/` 下的 `SUMMARY.md` 和 `GAP.md`。
-列表页翻页限深 5 页（更深走归档 + sitemap），这是有意的，不是 bug。
+列表页（频道/标签/作者）翻页不限深，但第 6 页起 `noindex,follow`（`apps/web/components/Pagination.tsx` 的 `NOINDEX_FROM_PAGE`）。
