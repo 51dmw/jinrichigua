@@ -123,6 +123,7 @@ export async function ChannelView({ channelSlug, page }: { channelSlug: string; 
                 article={a}
                 variant="left-text-right-image"
                 headingLevel={2}
+                showTags
               />,
               i === 5 ? <AdSlotBanner key="channel-mid" slotKey="channel-mid" /> : null,
             ])}

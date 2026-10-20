@@ -9,6 +9,19 @@ function href(a: ArticleListItem): string {
   return `/${a.channel?.slug ?? 'news'}/${a.slug}`;
 }
 
+const CARD_TAG_LIMIT = 3;
+/** 热榜平台类泛标签：和来源行重复、信息量低，卡片上不展示 */
+const GENERIC_TAGS = new Set([
+  '热搜', '热榜', '百度热搜', '微博热搜', '知乎热榜', '头条热榜', '抖音热点', '腾讯新闻',
+]);
+
+function cardTags(a: ArticleListItem): Array<{ name: string; slug: string }> {
+  const sources = new Set((a.source ?? '').split('/').map((s) => s.trim()));
+  return (a.tags ?? [])
+    .filter((t) => t.slug && !GENERIC_TAGS.has(t.name) && !sources.has(t.name))
+    .slice(0, CARD_TAG_LIMIT);
+}
+
 function Cover({
   a,
   sizes,
@@ -48,11 +61,14 @@ export function ArticleCard({
   variant,
   priority,
   headingLevel = 3,
+  showTags = false,
 }: {
   article: ArticleListItem;
   variant: BlockVariant;
   priority?: boolean;
   headingLevel?: 2 | 3;
+  /** 仅 left-text-right-image 生效：来源行下加红底胶囊标签（频道页用；数据需 populate tags） */
+  showTags?: boolean;
 }) {
   const Heading = `h${headingLevel}` as 'h2' | 'h3';
   // 大图卡
@@ -124,6 +140,40 @@ export function ArticleCard({
   }
 
   // left-text-right-image（默认）
+  const tags = showTags ? cardTags(article) : [];
+  if (tags.length > 0) {
+    // 胶囊要链到标签页，不能再套在整卡 <Link> 里（<a> 不可嵌套）：
+    // 改为标题链接 after:inset-0 撑满整卡（stretched link），胶囊行 z-10 浮在其上单独可点
+    return (
+      <article className="relative flex items-stretch gap-3 py-2.5">
+        <div className="min-w-0 flex-1">
+          <Heading className="line-clamp-2 text-base font-medium leading-snug text-gray-900">
+            <Link href={href(article)} className="after:absolute after:inset-0">
+              {article.title}
+            </Link>
+          </Heading>
+          <p className="mt-2 text-xs text-gray-500">
+            {article.channel?.name ?? ''} {article.source ? `· ${article.source}` : ''}
+          </p>
+          <div className="relative z-10 mt-1.5 flex gap-1.5 overflow-hidden">
+            {tags.map((t) => (
+              <Link
+                key={t.slug}
+                href={`/tag/${t.slug}`}
+                className="shrink-0 rounded-full bg-brand px-2 py-0.5 text-[11px] leading-4 text-white hover:bg-brand-dark"
+              >
+                {t.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+        <div className="relative aspect-[4/3] w-28 shrink-0 overflow-hidden rounded">
+          <Cover a={article} sizes="112px" />
+        </div>
+      </article>
+    );
+  }
+
   return (
     <Link href={href(article)} className="block py-2.5">
       <article className="flex items-stretch gap-3">

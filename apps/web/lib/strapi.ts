@@ -141,6 +141,7 @@ export async function getArticlesByChannel(
   const json = await strapiGet<StrapiListResponse<ArticleListItem>>(
     `/articles?filters[channel][slug][$eq]=${encodeURIComponent(channelSlug)}` +
       `&sort[0]=publishAt:desc&sort[1]=publishedAt:desc&${LIST_POPULATE}` +
+      `&populate[tags][fields][0]=name&populate[tags][fields][1]=slug` +
       `&pagination[page]=${page}&pagination[pageSize]=${pageSize}`,
     { tags: [TAGS.articles, `channel:${channelSlug}`] },
   );
