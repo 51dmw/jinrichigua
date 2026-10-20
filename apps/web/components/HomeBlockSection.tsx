@@ -7,13 +7,13 @@ export function HomeBlockSection({ block, first }: { block: HomeBlock; first?: b
   const [lead, ...rest] = block.items;
 
   return (
-    <section className="mb-6">
-      <div className="mb-2 flex items-center justify-between px-1">
-        <h2 className="border-l-4 border-brand pl-2 text-base font-bold text-white">
+    <section className="mb-4 rounded-lg bg-white p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="border-l-4 border-brand pl-2 text-base font-bold text-gray-900">
           {block.title}
         </h2>
         {block.channelSlug ? (
-          <Link href={`/${block.channelSlug}`} className="text-xs text-gray-400 hover:text-white">
+          <Link href={`/${block.channelSlug}`} className="text-xs text-gray-500 hover:text-brand">
             更多 ›
           </Link>
         ) : null}
@@ -24,7 +24,7 @@ export function HomeBlockSection({ block, first }: { block: HomeBlock; first?: b
         <div className="space-y-1">
           {lead ? <ArticleCard article={lead} variant="hero" priority={first} /> : null}
           {rest.length ? (
-            <div className="divide-y divide-gray-100 rounded-lg bg-white px-3">
+            <div className="divide-y divide-gray-100">
               {rest.map((a) => (
                 <ArticleCard key={a.documentId} article={a} variant="left-text-right-image" />
               ))}
@@ -44,7 +44,7 @@ export function HomeBlockSection({ block, first }: { block: HomeBlock; first?: b
 
       {/* three-image：三列图上文下网格 */}
       {block.variant === 'three-image' ? (
-        <div className="grid grid-cols-3 gap-2 rounded-lg bg-white p-3">
+        <div className="grid grid-cols-3 gap-2">
           {block.items.slice(0, 6).map((a) => (
             <ArticleCard key={a.documentId} article={a} variant="three-image" />
           ))}
@@ -53,7 +53,7 @@ export function HomeBlockSection({ block, first }: { block: HomeBlock; first?: b
 
       {/* left-text-right-image / text-only：竖向列表 */}
       {block.variant === 'left-text-right-image' || block.variant === 'text-only' ? (
-        <div className="divide-y divide-gray-100 rounded-lg bg-white px-3">
+        <div className="divide-y divide-gray-100">
           {block.items.map((a) => (
             <ArticleCard key={a.documentId} article={a} variant={block.variant} />
           ))}

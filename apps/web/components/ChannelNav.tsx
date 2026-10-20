@@ -29,7 +29,7 @@ export function ChannelNav({ channels }: { channels: Channel[] }) {
   return (
     <nav
       aria-label="频道导航"
-      className="sticky top-0 z-20 border-b border-white/10 bg-ink-dark/95 shadow-sm backdrop-blur"
+      className="sticky top-0 z-20 border-b-2 border-brand bg-ink/95 shadow-sm backdrop-blur"
     >
       <div className="relative mx-auto max-w-screen lg:max-w-5xl">
         <div className="flex items-stretch">
@@ -78,7 +78,7 @@ export function ChannelNav({ channels }: { channels: Channel[] }) {
               onClick={() => setOpen(false)}
               className="fixed inset-0 z-30 cursor-default bg-black/10"
             />
-            <div className="absolute inset-x-0 top-full z-40 border-t border-white/10 bg-ink-dark shadow-lg">
+            <div className="absolute inset-x-0 top-full z-40 border-t border-white/10 bg-ink shadow-lg">
               <div className="grid grid-cols-4 gap-1 p-3 sm:grid-cols-5 lg:grid-cols-6">
                 {items.map((it) => (
                   <Link

@@ -47,7 +47,7 @@ export async function SiteFooter({ global }: { global: GlobalSettings | null }) 
   const tags = await getFeaturedTags(12);
 
   return (
-    <footer className="mt-8 border-t border-white/10 bg-ink-dark text-gray-400">
+    <footer className="mt-8 border-t border-white/10 bg-ink text-gray-400">
       <div className="mx-auto max-w-screen px-4 py-6 lg:max-w-5xl">
         {/* 精选标签（按标签最热文章点击数排序，SEO 站内内链，每页可见）。
             触控目标 ≥44px（SEO 审计 #23）：原先 min-h-24px + px-1 远低于移动友好度门槛。

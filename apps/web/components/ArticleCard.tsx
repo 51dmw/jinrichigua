@@ -9,11 +9,16 @@ function href(a: ArticleListItem): string {
   return `/${a.channel?.slug ?? 'news'}/${a.slug}`;
 }
 
-const CARD_TAG_LIMIT = 3;
+const CARD_TAG_LIMIT = 2;
 /** 热榜平台类泛标签：和来源行重复、信息量低，卡片上不展示 */
 const GENERIC_TAGS = new Set([
   '热搜', '热榜', '百度热搜', '微博热搜', '知乎热榜', '头条热榜', '抖音热点', '腾讯新闻',
 ]);
+
+/** 来源行只取第一个平台（「百度热搜/微博热搜/…」会折行，卡片高度参差） */
+export function primarySource(source?: string | null): string {
+  return (source ?? '').split('/')[0].trim();
+}
 
 function cardTags(a: ArticleListItem): Array<{ name: string; slug: string }> {
   const sources = new Set((a.source ?? '').split('/').map((s) => s.trim()));
@@ -153,14 +158,14 @@ export function ArticleCard({
             </Link>
           </Heading>
           <p className="mt-2 text-xs text-gray-500">
-            {article.channel?.name ?? ''} {article.source ? `· ${article.source}` : ''}
+            {article.channel?.name ?? ''} {article.source ? `· ${primarySource(article.source)}` : ''}
           </p>
           <div className="relative z-10 mt-1.5 flex gap-1.5 overflow-hidden">
             {tags.map((t) => (
               <Link
                 key={t.slug}
                 href={`/tag/${t.slug}`}
-                className="shrink-0 rounded-full bg-brand px-2 py-0.5 text-[11px] leading-4 text-white hover:bg-brand-dark"
+                className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] leading-4 text-brand hover:bg-brand hover:text-white"
               >
                 {t.name}
               </Link>
@@ -182,7 +187,7 @@ export function ArticleCard({
             {article.title}
           </Heading>
           <p className="mt-2 text-xs text-gray-500">
-            {article.channel?.name ?? ''} {article.source ? `· ${article.source}` : ''}
+            {article.channel?.name ?? ''} {article.source ? `· ${primarySource(article.source)}` : ''}
           </p>
         </div>
         <div className="relative aspect-[4/3] w-28 shrink-0 overflow-hidden rounded">

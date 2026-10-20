@@ -9,6 +9,7 @@ import { JsonLd } from '@/components/JsonLd';
 import { AdSlotBanner } from '@/components/AdSlotBanner';
 import { TagCloud } from '@/components/TagCloud';
 import { CoverPlaceholder } from '@/components/CoverPlaceholder';
+import { primarySource } from '@/components/ArticleCard';
 
 export const revalidate = 120; // ISR
 export const dynamicParams = true;
@@ -55,7 +56,7 @@ function HotRow({ a, rank }: { a: ArticleListItem; rank: number }) {
             <p className="mt-1 line-clamp-2 text-sm text-gray-500">{a.summary}</p>
           ) : null}
           <div className="mt-1 text-xs text-gray-500">
-            {a.channel?.name ?? ''} {a.source ? `· ${a.source}` : ''}
+            {a.channel?.name ?? ''} {a.source ? `· ${primarySource(a.source)}` : ''}
           </div>
         </div>
         <div className="relative aspect-[4/3] w-28 shrink-0 overflow-hidden rounded">
