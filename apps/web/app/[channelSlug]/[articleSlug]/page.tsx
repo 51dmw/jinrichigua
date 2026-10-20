@@ -103,6 +103,7 @@ export default async function ArticlePage({ params }: { params: Params }) {
       <JsonLd data={newsLd} />
 
       <Breadcrumb
+        tone="light"
         items={[
           { name: '首页', path: '/' },
           { name: article.channel?.name ?? channelSlug, path: `/${channelSlug}` },

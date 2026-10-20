@@ -29,7 +29,7 @@ export function ChannelNav({ channels }: { channels: Channel[] }) {
   return (
     <nav
       aria-label="频道导航"
-      className="sticky top-0 z-20 border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur"
+      className="sticky top-0 z-20 border-b border-white/10 bg-ink-dark/95 shadow-sm backdrop-blur"
     >
       <div className="relative mx-auto max-w-screen lg:max-w-5xl">
         <div className="flex items-stretch">
@@ -40,7 +40,7 @@ export function ChannelNav({ channels }: { channels: Channel[] }) {
                 <Link
                   href={it.href}
                   className={`block rounded px-3 py-1.5 ${
-                    isActive(it) ? 'bg-brand text-white' : 'text-gray-700 hover:bg-gray-100'
+                    isActive(it) ? 'bg-brand text-white' : 'text-gray-200 hover:bg-white/10'
                   }`}
                 >
                   {it.name}
@@ -55,7 +55,7 @@ export function ChannelNav({ channels }: { channels: Channel[] }) {
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
             aria-label={open ? '收起频道' : '展开全部频道'}
-            className="flex w-11 shrink-0 items-center justify-center border-l border-gray-100 text-gray-500 hover:text-brand"
+            className="flex w-11 shrink-0 items-center justify-center border-l border-white/10 text-gray-400 hover:text-white"
           >
             <svg
               viewBox="0 0 24 24"
@@ -78,7 +78,7 @@ export function ChannelNav({ channels }: { channels: Channel[] }) {
               onClick={() => setOpen(false)}
               className="fixed inset-0 z-30 cursor-default bg-black/10"
             />
-            <div className="absolute inset-x-0 top-full z-40 border-t border-gray-100 bg-white shadow-lg">
+            <div className="absolute inset-x-0 top-full z-40 border-t border-white/10 bg-ink-dark shadow-lg">
               <div className="grid grid-cols-4 gap-1 p-3 sm:grid-cols-5 lg:grid-cols-6">
                 {items.map((it) => (
                   <Link
@@ -87,8 +87,8 @@ export function ChannelNav({ channels }: { channels: Channel[] }) {
                     onClick={() => setOpen(false)}
                     className={`rounded px-2 py-2 text-center text-sm ${
                       isActive(it)
-                        ? 'bg-brand/10 font-medium text-brand'
-                        : 'text-gray-700 hover:bg-gray-50'
+                        ? 'bg-brand font-medium text-white'
+                        : 'text-gray-200 hover:bg-white/10'
                     }`}
                   >
                     {it.name}

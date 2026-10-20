@@ -9,11 +9,11 @@ export function HomeBlockSection({ block, first }: { block: HomeBlock; first?: b
   return (
     <section className="mb-6">
       <div className="mb-2 flex items-center justify-between px-1">
-        <h2 className="border-l-4 border-brand pl-2 text-base font-bold text-gray-900">
+        <h2 className="border-l-4 border-brand pl-2 text-base font-bold text-white">
           {block.title}
         </h2>
         {block.channelSlug ? (
-          <Link href={`/${block.channelSlug}`} className="text-xs text-gray-500">
+          <Link href={`/${block.channelSlug}`} className="text-xs text-gray-400 hover:text-white">
             更多 ›
           </Link>
         ) : null}

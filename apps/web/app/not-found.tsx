@@ -11,8 +11,8 @@ export default function NotFound() {
   return (
     <div className="mx-auto max-w-screen px-4 py-16 text-center lg:max-w-5xl">
       <p className="text-5xl font-bold text-brand">404</p>
-      <h1 className="mt-3 text-lg font-bold text-gray-900">页面未找到</h1>
-      <p className="mt-2 text-sm text-gray-500">
+      <h1 className="mt-3 text-lg font-bold text-white">页面未找到</h1>
+      <p className="mt-2 text-sm text-gray-400">
         你要找的瓜可能已下架，或者链接失效了。
       </p>
       <Link
@@ -24,8 +24,8 @@ export default function NotFound() {
 
       {/* 引导出口（SEO 审计 #34）：状态码与 noindex 本来就对，缺的是降跳出率的去处。
           这些是纯静态链接，不取数据——404 页要保证在任何后端故障下都能渲染。 */}
-      <div className="mt-8 border-t border-gray-200 pt-6 text-left">
-        <h2 className="mb-3 text-center text-sm font-bold text-gray-700">换个地方接着吃瓜</h2>
+      <div className="mt-8 border-t border-white/10 pt-6 text-left">
+        <h2 className="mb-3 text-center text-sm font-bold text-gray-300">换个地方接着吃瓜</h2>
         <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm">
           {[
             { href: '/hot', label: '吃瓜热榜' },

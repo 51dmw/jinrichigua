@@ -8,7 +8,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: '聚合每日热点与全网热搜的吃瓜资讯站。',
     start_url: '/',
     display: 'standalone',
-    background_color: '#ffffff',
+    background_color: '#2a2a2a',
     theme_color: '#c1272d',
     lang: 'zh-CN',
     icons: [

@@ -52,7 +52,7 @@ export default async function SearchPage({ searchParams }: { searchParams: SP })
           { name: '搜索', path: '/search' },
         ]}
       />
-      <h1 className="mb-3 border-l-4 border-brand pl-2 text-lg font-bold">站内搜索</h1>
+      <h1 className="mb-3 border-l-4 border-brand pl-2 text-lg font-bold text-white">站内搜索</h1>
 
       <div className="mb-4">
         <SearchBox initial={term} />
@@ -124,7 +124,7 @@ export default async function SearchPage({ searchParams }: { searchParams: SP })
         </p>
       ) : (
         <>
-          <p className="mb-2 px-1 text-xs text-gray-500">
+          <p className="mb-2 px-1 text-xs text-gray-400">
             「{term}」的结果 · 共 {search.total} 条
           </p>
           <div className="divide-y divide-gray-100 rounded-lg bg-white px-3">

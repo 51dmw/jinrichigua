@@ -48,7 +48,7 @@ export function Pagination({
       ) : (
         <span className={dim}>‹ 上一页</span>
       )}
-      <span className="text-xs text-gray-500">
+      <span className="text-xs text-gray-400">
         第 {page} / {effPageCount} 页 · 共 {total} 篇
       </span>
       {hasNext ? (

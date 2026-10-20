@@ -32,7 +32,7 @@ export default async function ArchivePage() {
             { name: '文章归档', path: '/archive' },
           ]}
         />
-        <h1 className="mb-3 border-l-4 border-brand pl-2 text-lg font-bold">文章归档</h1>
+        <h1 className="mb-3 border-l-4 border-brand pl-2 text-lg font-bold text-white">文章归档</h1>
 
         {years.length === 0 ? (
           <p className="rounded-lg bg-white p-6 text-center text-sm text-gray-500">暂无归档内容。</p>

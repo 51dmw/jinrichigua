@@ -11,6 +11,11 @@ const config: Config = {
           DEFAULT: '#c1272d', // 资讯门户常见的红色主色（移动版版式参考）
           dark: '#a01f24',
         },
+        // 淡黑底色：与品牌红形成红黑主题；dark 用于吸顶导航/页脚，和页面底拉开一层
+        ink: {
+          DEFAULT: '#2a2a2a',
+          dark: '#1f1f1f',
+        },
       },
       // 简体中文系统字体栈：覆盖 iOS/macOS/Windows/Android/Linux，
       // 全部用系统自带字体 → 零 Web 字体下载（性能最佳，无 FOUT/FOIT）。

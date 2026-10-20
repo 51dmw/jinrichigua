@@ -11,9 +11,9 @@ export async function FriendLinks() {
   if (links.length === 0) return null;
 
   return (
-    <nav aria-label="友情链接" className="mb-5 border-t border-gray-200 pt-5">
+    <nav aria-label="友情链接" className="mb-5 border-t border-white/10 pt-5">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
-        <span className="text-gray-500">友情链接：</span>
+        <span className="text-gray-400">友情链接：</span>
         {links.map((l) => {
           const tracked = l.track !== false;
           const href = tracked ? `/go?code=${encodeURIComponent(l.code)}` : l.url;
@@ -29,7 +29,7 @@ export async function FriendLinks() {
               rel={rel}
               target="_blank"
               title={l.description ?? l.domain ?? l.name}
-              className="text-gray-500 hover:text-brand"
+              className="text-gray-400 hover:text-white"
             >
               {l.name}
             </a>
