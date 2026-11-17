@@ -132,6 +132,13 @@ export async function getAllChannelSlugs(): Promise<string[]> {
 // ─────────────────────────────────────────────────────────────
 
 const LIST_POPULATE = 'populate[cover]=true&populate[channel]=true';
+/**
+ * 左文右图卡片（ArticleCard / 热榜行）要展示标签胶囊和可点的作者名：
+ * 凡是喂给这种卡片的列表查询都要带上它（标签 name/slug + 作者实体 name/slug）。
+ */
+const CARD_META_POPULATE =
+  'populate[tags][fields][0]=name&populate[tags][fields][1]=slug' +
+  '&populate[authorRef][fields][0]=name&populate[authorRef][fields][1]=slug';
 
 export async function getArticlesByChannel(
   channelSlug: string,
@@ -140,8 +147,7 @@ export async function getArticlesByChannel(
 ): Promise<{ items: ArticleListItem[]; pageCount: number; total: number }> {
   const json = await strapiGet<StrapiListResponse<ArticleListItem>>(
     `/articles?filters[channel][slug][$eq]=${encodeURIComponent(channelSlug)}` +
-      `&sort[0]=publishAt:desc&sort[1]=publishedAt:desc&${LIST_POPULATE}` +
-      `&populate[tags][fields][0]=name&populate[tags][fields][1]=slug` +
+      `&sort[0]=publishAt:desc&sort[1]=publishedAt:desc&${LIST_POPULATE}&${CARD_META_POPULATE}` +
       `&pagination[page]=${page}&pagination[pageSize]=${pageSize}`,
     { tags: [TAGS.articles, `channel:${channelSlug}`] },
   );
@@ -171,7 +177,7 @@ export async function getArticlesByTag(
 ): Promise<{ tagName: string | null; items: ArticleListItem[]; pageCount: number; total: number }> {
   const json = await strapiGet<StrapiListResponse<ArticleListItem>>(
     `/articles?filters[tags][slug][$eq]=${encodeURIComponent(tagSlug)}` +
-      `&sort[0]=publishAt:desc&sort[1]=publishedAt:desc&${LIST_POPULATE}&populate[tags]=true` +
+      `&sort[0]=publishAt:desc&sort[1]=publishedAt:desc&${LIST_POPULATE}&${CARD_META_POPULATE}` +
       `&pagination[page]=${page}&pagination[pageSize]=${pageSize}`,
     { tags: [TAGS.articles, `tag:${tagSlug}`] },
   );
@@ -199,7 +205,7 @@ export async function searchArticles(
       `/articles?filters[$or][0][title][$containsi]=${e}` +
         `&filters[$or][1][summary][$containsi]=${e}` +
         `&filters[$or][2][content][$containsi]=${e}` +
-        `&sort[0]=publishAt:desc&sort[1]=publishedAt:desc&${LIST_POPULATE}` +
+        `&sort[0]=publishAt:desc&sort[1]=publishedAt:desc&${LIST_POPULATE}&${CARD_META_POPULATE}` +
         `&pagination[page]=${page}&pagination[pageSize]=${pageSize}`,
       { revalidate: 0 },
     );
@@ -275,7 +281,8 @@ export async function getArticlesByMonth(
   try {
     const json = await strapiGet<StrapiListResponse<ArticleListItem>>(
       `/articles?filters[publishAt][$gte]=${start}&filters[publishAt][$lt]=${end}` +
-        `&sort[0]=publishAt:desc&${LIST_POPULATE}&pagination[page]=${page}&pagination[pageSize]=${pageSize}`,
+        `&sort[0]=publishAt:desc&${LIST_POPULATE}&${CARD_META_POPULATE}` +
+        `&pagination[page]=${page}&pagination[pageSize]=${pageSize}`,
       { tags: [TAGS.articles] },
     );
     const p = json.meta?.pagination;
@@ -360,7 +367,7 @@ export async function getArticlesByAuthor(
 ): Promise<{ items: ArticleListItem[]; pageCount: number; total: number }> {
   const json = await strapiGet<StrapiListResponse<ArticleListItem>>(
     `/articles?filters[authorRef][slug][$eq]=${encodeURIComponent(authorSlug)}` +
-      `&sort[0]=publishAt:desc&sort[1]=publishedAt:desc&${LIST_POPULATE}` +
+      `&sort[0]=publishAt:desc&sort[1]=publishedAt:desc&${LIST_POPULATE}&${CARD_META_POPULATE}` +
       `&pagination[page]=${page}&pagination[pageSize]=${pageSize}`,
     { tags: [TAGS.articles, `author:${authorSlug}`] },
   );
@@ -401,7 +408,8 @@ export async function getHotArticles(
   }
   try {
     const json = await strapiGet<StrapiListResponse<ArticleListItem>>(
-      `/articles?sort=viewCount:desc${f}&${LIST_POPULATE}&pagination[pageSize]=${limit}`,
+      `/articles?sort=viewCount:desc${f}&${LIST_POPULATE}&${CARD_META_POPULATE}` +
+        `&pagination[pageSize]=${limit}`,
       { tags: cacheTags },
     );
     return json.data ?? [];
@@ -564,7 +572,7 @@ export async function getRelatedArticles(
         .join('&');
       const json = await strapiGet<StrapiListResponse<ArticleListItem>>(
         `/articles?${inFilter}&filters[slug][$ne]=${encodeURIComponent(excludeSlug)}` +
-          `&${LIST_POPULATE}&populate[tags][fields][0]=slug` +
+          `&${LIST_POPULATE}&${CARD_META_POPULATE}` +
           `&sort[0]=publishAt:desc&pagination[pageSize]=${limit * 4}`,
         { tags: [TAGS.articles] },
       );
@@ -583,7 +591,7 @@ export async function getRelatedArticles(
       const json = await strapiGet<StrapiListResponse<ArticleListItem>>(
         `/articles?filters[channel][slug][$eq]=${encodeURIComponent(channelSlug)}` +
           `&filters[slug][$ne]=${encodeURIComponent(excludeSlug)}` +
-          `&sort[0]=publishAt:desc&sort[1]=publishedAt:desc&${LIST_POPULATE}` +
+          `&sort[0]=publishAt:desc&sort[1]=publishedAt:desc&${LIST_POPULATE}&${CARD_META_POPULATE}` +
           `&pagination[pageSize]=${limit + picked.size}`,
         { tags: [TAGS.articles, `channel:${channelSlug}`] },
       );

@@ -26,7 +26,7 @@ export function HomeBlockSection({ block, first }: { block: HomeBlock; first?: b
           {rest.length ? (
             <div className="divide-y divide-gray-100">
               {rest.map((a) => (
-                <ArticleCard key={a.documentId} article={a} variant="left-text-right-image" />
+                <ArticleCard key={a.documentId} article={a} variant="left-text-right-image" showTags />
               ))}
             </div>
           ) : null}
@@ -55,7 +55,7 @@ export function HomeBlockSection({ block, first }: { block: HomeBlock; first?: b
       {block.variant === 'left-text-right-image' || block.variant === 'text-only' ? (
         <div className="divide-y divide-gray-100">
           {block.items.map((a) => (
-            <ArticleCard key={a.documentId} article={a} variant={block.variant} />
+            <ArticleCard key={a.documentId} article={a} variant={block.variant} showTags />
           ))}
         </div>
       ) : null}

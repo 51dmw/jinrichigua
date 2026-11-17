@@ -9,7 +9,7 @@ import { JsonLd } from '@/components/JsonLd';
 import { AdSlotBanner } from '@/components/AdSlotBanner';
 import { TagCloud } from '@/components/TagCloud';
 import { CoverPlaceholder } from '@/components/CoverPlaceholder';
-import { primarySource } from '@/components/ArticleCard';
+import { CardMeta, CardTagRow } from '@/components/ArticleCard';
 
 export const revalidate = 120; // ISR
 export const dynamicParams = true;
@@ -37,36 +37,32 @@ function HotRow({ a, rank }: { a: ArticleListItem; rank: number }) {
   const href = `/${a.channel?.slug ?? 'news'}/${a.slug}`;
   const top = rank <= 3;
   return (
-    <li>
-      <Link href={href} className="flex gap-3 border-b border-gray-100 p-3 last:border-0">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span
-              className={`text-sm font-extrabold italic ${top ? 'text-brand' : 'text-gray-500'}`}
-            >
-              NO.{rank}
-            </span>
-            <span className="text-xs text-gray-500">{formatHeat(a.viewCount)}热度</span>
-          </div>
-          <h2 className="mt-1 line-clamp-1 font-bold text-gray-900">
+    // 与 ArticleCard 左文右图同构：标题链接撑满整行，频道/作者/标签各自可点（<a> 不可嵌套）
+    <li className="relative flex gap-3 border-b border-gray-100 p-3 last:border-0">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className={`text-sm font-extrabold italic ${top ? 'text-brand' : 'text-gray-500'}`}>
+            NO.{rank}
+          </span>
+          <span className="text-xs text-gray-500">{formatHeat(a.viewCount)}热度</span>
+        </div>
+        <h2 className="mt-1 line-clamp-1 font-bold text-gray-900">
+          <Link href={href} className="after:absolute after:inset-0">
             <span className="text-brand">#</span>
             {a.title}
-          </h2>
-          {a.summary ? (
-            <p className="mt-1 line-clamp-2 text-sm text-gray-500">{a.summary}</p>
-          ) : null}
-          <div className="mt-1 text-xs text-gray-500">
-            {a.channel?.name ?? ''} {a.source ? `· ${primarySource(a.source)}` : ''}
-          </div>
-        </div>
-        <div className="relative aspect-[4/3] w-28 shrink-0 overflow-hidden rounded">
-          {cover ? (
-            <Image src={cover} alt={imageAlt(a.cover, a.title)} fill sizes="112px" className="object-cover" />
-          ) : (
-            <CoverPlaceholder wordmark={false} />
-          )}
-        </div>
-      </Link>
+          </Link>
+        </h2>
+        {a.summary ? <p className="mt-1 line-clamp-2 text-sm text-gray-500">{a.summary}</p> : null}
+        <CardMeta article={a} className="mt-1" />
+        <CardTagRow article={a} />
+      </div>
+      <div className="relative aspect-[4/3] w-28 shrink-0 overflow-hidden rounded">
+        {cover ? (
+          <Image src={cover} alt={imageAlt(a.cover, a.title)} fill sizes="112px" className="object-cover" />
+        ) : (
+          <CoverPlaceholder wordmark={false} />
+        )}
+      </div>
     </li>
   );
 }

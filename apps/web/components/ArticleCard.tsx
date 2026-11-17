@@ -10,14 +10,57 @@ function href(a: ArticleListItem): string {
 }
 
 const CARD_TAG_LIMIT = 2;
-/** 热榜平台类泛标签：和来源行重复、信息量低，卡片上不展示 */
+/** 热榜平台类泛标签：信息量低（只说明是哪个榜），卡片上不展示 */
 const GENERIC_TAGS = new Set([
   '热搜', '热榜', '百度热搜', '微博热搜', '知乎热榜', '头条热榜', '抖音热点', '腾讯新闻',
 ]);
 
-/** 来源行只取第一个平台（「百度热搜/微博热搜/…」会折行，卡片高度参差） */
-export function primarySource(source?: string | null): string {
-  return (source ?? '').split('/')[0].trim();
+/**
+ * 卡片副标题行「频道 · 作者」，两项都可点：频道 → 频道页，作者 → 作者页。
+ * 作者优先用作者实体（有 slug 才能链）；只有字符串作者时退化为纯文字；都没有则只显示频道。
+ * 必须放在 stretched-link 卡片里用：链接靠 relative z-10 浮在整卡标题链接之上。
+ */
+export function CardMeta({ article, className = '' }: { article: ArticleListItem; className?: string }) {
+  const ch = article.channel;
+  const ref = article.authorRef;
+  const authorName = (ref?.name ?? article.author ?? '').trim();
+  const link = 'relative z-10 hover:text-brand hover:underline';
+  return (
+    <p className={`text-xs text-gray-500 ${className}`}>
+      {ch?.slug ? (
+        <Link href={`/${ch.slug}`} className={link}>
+          {ch.name}
+        </Link>
+      ) : null}
+      {ch?.slug && authorName ? <span className="mx-1">·</span> : null}
+      {authorName && ref?.slug ? (
+        <Link href={`/author/${ref.slug}`} className={link}>
+          {authorName}
+        </Link>
+      ) : (
+        authorName
+      )}
+    </p>
+  );
+}
+
+/** 卡片标签胶囊行（最多 CARD_TAG_LIMIT 个，链到标签页）；没有可展示的标签时不渲染 */
+export function CardTagRow({ article }: { article: ArticleListItem }) {
+  const tags = cardTags(article);
+  if (tags.length === 0) return null;
+  return (
+    <div className="relative z-10 mt-1.5 flex gap-1.5 overflow-hidden">
+      {tags.map((t) => (
+        <Link
+          key={t.slug}
+          href={`/tag/${t.slug}`}
+          className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] leading-4 text-brand hover:bg-brand hover:text-white"
+        >
+          {t.name}
+        </Link>
+      ))}
+    </div>
+  );
 }
 
 function cardTags(a: ArticleListItem): Array<{ name: string; slug: string }> {
@@ -66,13 +109,13 @@ export function ArticleCard({
   variant,
   priority,
   headingLevel = 3,
-  showTags = false,
+  showTags = true,
 }: {
   article: ArticleListItem;
   variant: BlockVariant;
   priority?: boolean;
   headingLevel?: 2 | 3;
-  /** 仅 left-text-right-image 生效：来源行下加红底胶囊标签（频道页用；数据需 populate tags） */
+  /** 仅 left-text-right-image 生效：频道·作者行下加红底胶囊标签。全站默认开；数据需 populate tags（lib/strapi 的 CARD_TAGS_POPULATE），没带标签数据时自动不显示 */
   showTags?: boolean;
 }) {
   const Heading = `h${headingLevel}` as 'h2' | 'h3';
@@ -122,9 +165,12 @@ export function ArticleCard({
           <div className="relative aspect-[16/10] w-full">
             <Cover a={article} sizes="(max-width: 640px) 50vw, 320px" priority={priority} />
           </div>
-          <Heading className="line-clamp-2 px-2 py-2 text-sm font-medium leading-snug text-gray-900">
-            {article.title}
-          </Heading>
+          {/* 内边距放外层：line-clamp 按 padding-box 裁切，py 留在标题上会露出第 3 行的上半截 */}
+          <div className="px-2 py-2">
+            <Heading className="line-clamp-2 text-sm font-medium leading-snug text-gray-900">
+              {article.title}
+            </Heading>
+          </div>
         </article>
       </Link>
     );
@@ -145,55 +191,22 @@ export function ArticleCard({
   }
 
   // left-text-right-image（默认）
-  const tags = showTags ? cardTags(article) : [];
-  if (tags.length > 0) {
-    // 胶囊要链到标签页，不能再套在整卡 <Link> 里（<a> 不可嵌套）：
-    // 改为标题链接 after:inset-0 撑满整卡（stretched link），胶囊行 z-10 浮在其上单独可点
-    return (
-      <article className="relative flex items-stretch gap-3 py-2.5">
-        <div className="min-w-0 flex-1">
-          <Heading className="line-clamp-2 text-base font-medium leading-snug text-gray-900">
-            <Link href={href(article)} className="after:absolute after:inset-0">
-              {article.title}
-            </Link>
-          </Heading>
-          <p className="mt-2 text-xs text-gray-500">
-            {article.channel?.name ?? ''} {article.source ? `· ${primarySource(article.source)}` : ''}
-          </p>
-          <div className="relative z-10 mt-1.5 flex gap-1.5 overflow-hidden">
-            {tags.map((t) => (
-              <Link
-                key={t.slug}
-                href={`/tag/${t.slug}`}
-                className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] leading-4 text-brand hover:bg-brand hover:text-white"
-              >
-                {t.name}
-              </Link>
-            ))}
-          </div>
-        </div>
-        <div className="relative aspect-[4/3] w-28 shrink-0 overflow-hidden rounded">
-          <Cover a={article} sizes="112px" />
-        </div>
-      </article>
-    );
-  }
-
+  // 频道、作者、标签都各自是链接，不能再套在整卡 <Link> 里（<a> 不可嵌套）：
+  // 标题链接 after:inset-0 撑满整卡（stretched link），其余链接 relative z-10 浮在其上单独可点
   return (
-    <Link href={href(article)} className="block py-2.5">
-      <article className="flex items-stretch gap-3">
-        <div className="min-w-0 flex-1">
-          <Heading className="line-clamp-2 text-base font-medium leading-snug text-gray-900">
+    <article className="relative flex items-stretch gap-3 py-2.5">
+      <div className="min-w-0 flex-1">
+        <Heading className="line-clamp-2 text-base font-medium leading-snug text-gray-900">
+          <Link href={href(article)} className="after:absolute after:inset-0">
             {article.title}
-          </Heading>
-          <p className="mt-2 text-xs text-gray-500">
-            {article.channel?.name ?? ''} {article.source ? `· ${primarySource(article.source)}` : ''}
-          </p>
-        </div>
-        <div className="relative aspect-[4/3] w-28 shrink-0 overflow-hidden rounded">
-          <Cover a={article} sizes="112px" />
-        </div>
-      </article>
-    </Link>
+          </Link>
+        </Heading>
+        <CardMeta article={article} className="mt-2" />
+        {showTags ? <CardTagRow article={article} /> : null}
+      </div>
+      <div className="relative aspect-[4/3] w-28 shrink-0 overflow-hidden rounded">
+        <Cover a={article} sizes="112px" />
+      </div>
+    </article>
   );
 }
