@@ -1,13 +1,11 @@
 name: Deploy Web (Cloudflare Workers)
 
-# 推到 main 后部署前台到 Cloudflare Workers（OpenNext，§7）。
+# 部署前台到 Cloudflare Workers（OpenNext，§7）。
 # 需在仓库 Secrets 配置：CLOUDFLARE_API_TOKEN、CLOUDFLARE_ACCOUNT_ID。
+#
+# 只允许手动触发：线上前台实际跑在 VPS 的 PM2 上（发版走 scripts/deploy-web.sh），
+# 这套 Workers 部署是未验证的遗留，不应该每次推 main 都自动跑。
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/web/**'
-      - 'packages/shared/**'
   workflow_dispatch:
 
 jobs:
