@@ -18,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#c1272d',
+  themeColor: '#ffffff',
   colorScheme: 'light',
 };
 
@@ -47,16 +47,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {/* 站点级实体图（§4 SEO）：Organization + Logo + WebSite，单段 @graph 靠 @id 互引 */}
         <JsonLd data={siteGraphJsonLd(global)} />
         {/* 品牌头：随页面滚走，让下面的分类行吸顶 */}
-        <header className="bg-brand">
+        <header className="bg-white">
           <div className="mx-auto flex max-w-screen items-center gap-3 px-4 py-2.5 lg:max-w-5xl">
             <Link href="/" className="shrink-0" aria-label={siteName}>
-              <Logo name={siteName} variant="white" />
+              <Logo name={siteName} variant="color" />
             </Link>
             {/* 搜索改为图标按钮 → 跳转独立搜索页（不在头部内联输入框） */}
             <Link
               href="/search"
               aria-label="搜索"
-              className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
+              className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-brand/10 hover:text-brand"
             >
               <svg
                 viewBox="0 0 24 24"

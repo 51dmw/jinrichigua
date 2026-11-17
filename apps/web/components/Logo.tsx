@@ -1,36 +1,36 @@
 /**
- * 品牌 Logo：西瓜切片标 + 字标（今日吃瓜）。
- * variant='white' 用于红底头部；'color' 用于浅底（页脚等）。
+ * 品牌 Logo：纯字标。站名末两字放进色块（「今日」+ 色块「吃瓜」），其余为普通字。
+ * 站名不足 3 字时不拆，整体作普通字。
+ * variant：'color' 用于白/浅底；'white' 用于品牌红底；'dark' 用于深色底。
  */
+const TONES = {
+  color: { head: 'text-gray-900', tag: 'bg-brand text-white' },
+  white: { head: 'text-white', tag: 'bg-white text-brand' },
+  dark: { head: 'text-white', tag: 'bg-brand text-white' },
+} as const;
+
 export function Logo({
   name = '今日吃瓜',
-  variant = 'white',
+  variant = 'color',
   className = '',
 }: {
   name?: string;
-  variant?: 'white' | 'color';
+  variant?: keyof typeof TONES;
   className?: string;
 }) {
-  const white = variant === 'white';
-  const flesh = white ? '#ffffff' : '#e8484d';
-  const seed = white ? '#c1272d' : '#3a2a1a';
-  const text = white ? '#ffffff' : '#c1272d';
+  const tone = TONES[variant];
+  const chars = Array.from(name);
+  const split = chars.length >= 3;
+  const head = split ? chars.slice(0, -2).join('') : name;
+  const tag = split ? chars.slice(-2).join('') : '';
   return (
-    <span className={`flex items-center gap-2 ${className}`}>
-      <svg viewBox="0 0 36 26" className="h-7 w-9 shrink-0" aria-hidden="true">
-        <g transform="translate(18,5)">
-          <path d="M -15 0 L 15 0 A 15 15 0 0 1 -15 0 Z" fill={flesh} />
-          {!white ? (
-            <path d="M 15 0 A 15 15 0 0 1 -15 0" fill="none" stroke="#3f9d4f" strokeWidth="3" />
-          ) : null}
-          <ellipse cx="-7" cy="6" rx="1.4" ry="2" fill={seed} />
-          <ellipse cx="0" cy="8.6" rx="1.4" ry="2" fill={seed} />
-          <ellipse cx="7" cy="6" rx="1.4" ry="2" fill={seed} />
-        </g>
-      </svg>
-      <span className="text-lg font-bold leading-none" style={{ color: text }}>
-        {name}
-      </span>
+    <span className={`flex items-center gap-1.5 font-bold leading-none ${className}`}>
+      <span className={`text-[22px] tracking-wider ${tone.head}`}>{head}</span>
+      {tag ? (
+        <span className={`rounded-sm py-1 pl-1.5 pr-1 text-lg tracking-wider ${tone.tag}`}>
+          {tag}
+        </span>
+      ) : null}
     </span>
   );
 }

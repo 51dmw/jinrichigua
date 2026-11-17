@@ -20,14 +20,14 @@ export function Breadcrumb({
 }: {
   items: Crumb[];
   className?: string;
-  /** dark：直接放在淡黑页面底上（默认）；light：放在白卡片里（文章页） */
+  /** dark：直接放在浅灰页面底上（默认，名字沿用旧的深色底时期）；light：放在白卡片里（文章页） */
   tone?: 'dark' | 'light';
 }) {
   if (items.length === 0) return null;
   const c =
     tone === 'light'
       ? { base: 'text-gray-500', current: 'text-gray-600', hover: 'hover:text-brand' }
-      : { base: 'text-gray-400', current: 'text-gray-300', hover: 'hover:text-white' };
+      : { base: 'text-gray-500', current: 'text-gray-700', hover: 'hover:text-brand' };
   const crumbs = items.map((it) => (it.path === '/' ? { ...it, name: HOME_BRAND } : it));
   return (
     <>

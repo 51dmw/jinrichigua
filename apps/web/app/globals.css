@@ -7,7 +7,7 @@
 }
 
 body {
-  @apply bg-ink text-gray-900 antialiased;
+  @apply bg-paper text-gray-900 antialiased;
 }
 
 /* 文章正文排版（最小版） */

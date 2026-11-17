@@ -29,18 +29,20 @@ export function ChannelNav({ channels }: { channels: Channel[] }) {
   return (
     <nav
       aria-label="频道导航"
-      className="sticky top-0 z-20 border-b-2 border-brand bg-ink/95 shadow-sm backdrop-blur"
+      className="sticky top-0 z-20 bg-brand shadow-sm"
     >
       <div className="relative mx-auto max-w-screen lg:max-w-5xl">
         <div className="flex items-stretch">
           {/* 横向滚动的一行频道 */}
-          <ul className="flex flex-1 items-center gap-1 overflow-x-auto px-2 py-2 text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <ul className="flex flex-1 items-stretch overflow-x-auto text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {items.map((it) => (
-              <li key={it.href} className="shrink-0">
+              <li key={it.href} className="shrink-0 border-l border-white/20 last:border-r">
                 <Link
                   href={it.href}
-                  className={`block rounded px-3 py-1.5 ${
-                    isActive(it) ? 'bg-brand text-white' : 'text-gray-200 hover:bg-white/10'
+                  className={`block px-4 py-2.5 ${
+                    isActive(it)
+                      ? 'bg-brand-dark font-medium text-white'
+                      : 'text-white hover:bg-white/10'
                   }`}
                 >
                   {it.name}
@@ -55,7 +57,7 @@ export function ChannelNav({ channels }: { channels: Channel[] }) {
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
             aria-label={open ? '收起频道' : '展开全部频道'}
-            className="flex w-11 shrink-0 items-center justify-center border-l border-white/10 text-gray-400 hover:text-white"
+            className="flex w-11 shrink-0 items-center justify-center border-l border-white/20 text-white/80 hover:text-white"
           >
             <svg
               viewBox="0 0 24 24"
@@ -78,7 +80,7 @@ export function ChannelNav({ channels }: { channels: Channel[] }) {
               onClick={() => setOpen(false)}
               className="fixed inset-0 z-30 cursor-default bg-black/10"
             />
-            <div className="absolute inset-x-0 top-full z-40 border-t border-white/10 bg-ink shadow-lg">
+            <div className="absolute inset-x-0 top-full z-40 border-t border-white/15 bg-brand shadow-lg">
               <div className="grid grid-cols-4 gap-1 p-3 sm:grid-cols-5 lg:grid-cols-6">
                 {items.map((it) => (
                   <Link
@@ -87,8 +89,8 @@ export function ChannelNav({ channels }: { channels: Channel[] }) {
                     onClick={() => setOpen(false)}
                     className={`rounded px-2 py-2 text-center text-sm ${
                       isActive(it)
-                        ? 'bg-brand font-medium text-white'
-                        : 'text-gray-200 hover:bg-white/10'
+                        ? 'bg-brand-dark font-medium text-white'
+                        : 'text-white hover:bg-white/10'
                     }`}
                   >
                     {it.name}
