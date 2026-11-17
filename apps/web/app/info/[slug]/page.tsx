@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getAllPageSlugs, getGlobal, getPageBySlug, getPopularTags } from '@/lib/strapi';
-import { resolveMetadata } from '@/lib/seo';
+import { resolveMetadata, faqJsonLd } from '@/lib/seo';
+import { JsonLd } from '@/components/JsonLd';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { TagChip } from '@/components/TagChip';
 
@@ -43,6 +44,15 @@ export default async function InfoPageRoute({ params }: { params: Promise<{ slug
     .map((l) => l.trim())
     .filter(Boolean);
 
+  // 问答体页面（如 /info/faq，后台正文每段是「问：…答：…」）：整页都是这种段落时，
+  // 渲染成「问句小标题 + 答案段落」并输出 FAQPage；只要有一段不符合就按普通段落处理。
+  const qa = paragraphs.map((p) => {
+    const m = /^问[：:]\s*(.+?)\s*答[：:]\s*(.+)$/.exec(p);
+    return m ? { q: m[1], a: m[2] } : null;
+  });
+  const isFaq = qa.length > 0 && qa.every(Boolean);
+  const faq = isFaq ? (qa as Array<{ q: string; a: string }>) : [];
+
   return (
     <div className="mx-auto w-full max-w-screen">
       <Breadcrumb
@@ -51,12 +61,18 @@ export default async function InfoPageRoute({ params }: { params: Promise<{ slug
           { name: page.title, path: `/info/${slug}` },
         ]}
       />
+      {isFaq ? <JsonLd data={faqJsonLd(faq, `/info/${slug}`)} /> : null}
       <article className="rounded-lg bg-white p-4">
         <h1 className="mb-3 text-xl font-bold text-gray-900">{page.title}</h1>
         <div className="article-body">
-          {paragraphs.map((p, i) => (
-            <p key={i}>{p.replace(/^#+\s*/, '')}</p>
-          ))}
+          {isFaq
+            ? faq.map(({ q, a }, i) => (
+                <section key={i}>
+                  <h2>{q}</h2>
+                  <p>{a}</p>
+                </section>
+              ))
+            : paragraphs.map((p, i) => <p key={i}>{p.replace(/^#+\s*/, '')}</p>)}
         </div>
 
         {tags.length > 0 ? (

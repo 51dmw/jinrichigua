@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getGlobal, getHomeBlocks } from '@/lib/strapi';
-import { resolveMetadata } from '@/lib/seo';
+import { resolveMetadata, homeGraphJsonLd, homeOgImage } from '@/lib/seo';
+import { JsonLd } from '@/components/JsonLd';
 import { HomeBlockSection } from '@/components/HomeBlockSection';
 import { AdSlotBanner } from '@/components/AdSlotBanner';
 import { AdAnchor } from '@/components/AdAnchor';
@@ -19,6 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
     // 首页 title 含核心关键词（避免过短，§4 SEO）；og:title 由 resolveMetadata 同步。
     fallbackTitle: '今日吃瓜 - 明星娱乐·网红爆料·社会大瓜实时热搜聚合',
     fallbackDescription: global?.defaultSeo?.metaDescription,
+    fallbackImage: homeOgImage(),
     path: '/',
   });
 }
@@ -40,12 +42,21 @@ export default async function HomePage() {
     <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start lg:gap-5">
       {/* 唯一 h1（SEO，视觉隐藏，不影响版式） */}
       <h1 className="sr-only">{siteName} — 每日明星娱乐、网红爆料与全网热点吃瓜聚合</h1>
+      {/* 首页实体图：CollectionPage + 所列文章的 ItemList（含作者与发布时间） */}
+      <JsonLd
+        data={homeGraphJsonLd(
+          blocks.flatMap((b) => b.items),
+          global,
+          global?.homeIntro?.replace(/\s+/g, ' ').trim() ?? global?.defaultSeo?.metaDescription,
+        )}
+      />
       <div className="min-w-0">
-        <AdSlotBanner slotKey="home-top" />
+        {/* 首屏两个广告位不懒加载：移动端 LCP 元素实测落在 home-feed-1 这张大图上 */}
+        <AdSlotBanner slotKey="home-top" priority />
         {/* 区块 + 穿插信息流原生位（密度约 1:N，避免农场感） */}
         {blocks.map((block, i) => [
           <HomeBlockSection key={block.channelSlug ?? block.title} block={block} first={i === 0} />,
-          i === 0 ? <AdSlotBanner key="home-feed-1" slotKey="home-feed-1" /> : null,
+          i === 0 ? <AdSlotBanner key="home-feed-1" slotKey="home-feed-1" priority /> : null,
           i === 2 ? <AdSlotBanner key="home-feed-2" slotKey="home-feed-2" /> : null,
         ])}
 
@@ -53,7 +64,8 @@ export default async function HomePage() {
         {global?.homeIntro ? (
           <section className="mb-6 rounded-lg bg-white p-4">
             <h2 className="mb-2 border-l-4 border-brand pl-2 text-base font-bold text-gray-900">
-              关于 {siteName}
+              {/* 问句标题 + 首句直接作答（homeIntro 以「{站名}是…」开头）：便于 AI 按问答摘用 */}
+              {siteName}是什么？
             </h2>
             <p className="text-sm leading-7 text-gray-600">{global.homeIntro}</p>
           </section>

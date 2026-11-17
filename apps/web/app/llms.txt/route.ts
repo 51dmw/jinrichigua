@@ -10,6 +10,9 @@ import { SITE_URL } from '@/lib/env';
  *
  * 频道列表实时取自 CMS（与导航同一个 getNavChannels），不硬编码——
  * 后台增删频道时这里自动跟着变，否则很快就会和站点实际结构脱节。
+ *
+ * 这里只列允许抓取的 URL：不要放 robots.txt 里 Disallow 的路径（/search、/api/ 等），
+ * 否则两份文件互相矛盾。
  */
 export const revalidate = 3600;
 
@@ -38,7 +41,6 @@ export async function GET(): Promise<Response> {
     '',
     `- [吃瓜热榜](${SITE_URL}/hot): 全网热点实时聚合榜单`,
     `- [文章归档](${SITE_URL}/archive): 按月份浏览历史文章`,
-    `- [站内搜索](${SITE_URL}/search): 按关键词检索站内内容`,
     `- [Sitemap](${SITE_URL}/sitemap.xml): 全站 URL 索引`,
     `- [RSS](${SITE_URL}/rss.xml): 最新 30 篇文章订阅源`,
     '',
@@ -47,7 +49,10 @@ export async function GET(): Promise<Response> {
     `- [关于我们](${SITE_URL}/info/about)`,
     `- [联络我们](${SITE_URL}/info/contact)`,
     `- [版权与投诉 DMCA](${SITE_URL}/info/dmca)`,
+    `- [常见问题](${SITE_URL}/info/faq)`,
+    `- [内容政策](${SITE_URL}/info/policy)`,
     `- [隐私政策](${SITE_URL}/info/privacy)`,
+    `- [说明与政策全文](${SITE_URL}/llms-full.txt): 以上页面正文的合并纯文本版`,
     '',
   );
 

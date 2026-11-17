@@ -15,12 +15,19 @@ export function AdRotator({
   alt = '',
   intervalMs = 4500,
   seed = 0,
+  priority = false,
 }: {
   srcs: string[];
   alt?: string;
   intervalMs?: number;
   /** 错峰种子（一般传位置 key 的哈希），避免整页广告位同一秒集体翻页 */
   seed?: number;
+  /**
+   * 首屏位置传 true：第一张图不懒加载并抬高抓取优先级。
+   * 移动端首屏里最大的元素可能就是这张图（即 LCP 元素），懒加载会直接拖慢 LCP。
+   * 只作用于第一张——其余几张初始是透明的，仍然懒加载。
+   */
+  priority?: boolean;
 }) {
   const [active, setActive] = useState(0);
 
@@ -48,7 +55,8 @@ export function AdRotator({
           src={src}
           alt={i === 0 ? alt : ''}
           aria-hidden={i === 0 ? undefined : true}
-          loading="lazy"
+          loading={priority && i === 0 ? 'eager' : 'lazy'}
+          fetchPriority={priority && i === 0 ? 'high' : undefined}
           decoding="async"
           // 尺寸走内联样式而非 class：正文里的 .article-body img 规则（h-auto/max-w-full/my-3）
           // 优先级高于 Tailwind 工具类，会把铺满容器的展位图挤成小方块。

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getArticlesByChannel, getChannelBySlug, getGlobal } from '@/lib/strapi';
-import { resolveMetadata, itemListJsonLd } from '@/lib/seo';
+import { resolveMetadata, itemListJsonLd, channelOgImage } from '@/lib/seo';
 import { ArticleCard } from './ArticleCard';
 import { Breadcrumb } from './Breadcrumb';
 import { JsonLd } from './JsonLd';
@@ -54,6 +54,7 @@ export async function channelMeta(channelSlug: string, page: number): Promise<Me
       `${channel.description ?? `${channel.name}最新热点与爆料。`}` +
       `本栏目按发布时间倒序收录全部${channel.name}文章，共 ${total} 篇，每日随全网热搜持续更新。` +
       (page > 1 ? `（第 ${page} 页）` : ''),
+    fallbackImage: channelOgImage(channel.slug),
     path: base,
     canonicalPath: pageHref(base, page),
     robots: deepPageRobots(page),
@@ -96,7 +97,7 @@ export async function ChannelView({ channelSlug, page }: { channelSlug: string; 
             base,
           )}
         />
-        <h1 className="mb-2 border-l-4 border-brand pl-2 text-lg font-bold text-white">
+        <h1 className="mb-2 border-l-4 border-brand pl-2 text-lg font-bold text-gray-900">
           {page > 1 ? `${channel.name} - 第 ${page} 页` : channel.name}
         </h1>
 

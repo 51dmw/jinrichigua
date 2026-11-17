@@ -4,9 +4,10 @@
  * 回退链（MUST）：单页 seo 字段 > Global 默认值 > 内容字段兜底(title/summary/cover)
  */
 import type { Metadata } from 'next';
-import type { Article, GlobalSettings, SeoMetaData } from 'shared';
+import type { Article, ArticleListItem, GlobalSettings, SeoMetaData } from 'shared';
 import { SITE_URL, SITE_LOCALE } from './env';
 import { mediaUrl } from './strapi';
+import ogManifest from './og-manifest.json';
 
 function abs(path: string): string {
   if (path.startsWith('http')) return path;
@@ -40,7 +41,10 @@ export const ENTITY_ID = {
 } as const;
 
 /** 页面级实体 @id：同一页的各实体靠它互相引用。 */
-function pageEntityId(url: string, name: 'webpage' | 'breadcrumb' | 'article' | 'itemlist'): string {
+function pageEntityId(
+  url: string,
+  name: 'webpage' | 'breadcrumb' | 'article' | 'itemlist' | 'faq',
+): string {
   return `${url}#${name}`;
 }
 
@@ -75,6 +79,20 @@ export function buildSiteMetadata(global: GlobalSettings | null): Metadata {
 function globalOgImage(global: GlobalSettings | null): string[] {
   const url = mediaUrl(global?.defaultOgImage) ?? mediaUrl(global?.defaultSeo?.ogImage);
   return url ? [url] : [];
+}
+
+/**
+ * 首页 / 频道页的专属 og:image（静态 PNG，1200×630，位于 public/og/）。
+ *
+ * 图片由 `node scripts/gen-og-images.mjs` 生成，并同时写出 og-manifest.json 记录
+ * 哪些频道有图。后台新增频道后要重跑脚本并重新发版；没有图的频道返回 undefined，
+ * 调用方会回退到全站默认 og 图。后台单页 SEO 里手动配的 ogImage 仍然优先。
+ */
+export function homeOgImage(): string {
+  return abs('/og/home.png');
+}
+export function channelOgImage(slug: string): string | undefined {
+  return ogManifest.channels.includes(slug) ? abs(`/og/channel-${slug}.png`) : undefined;
 }
 
 /** 文章专属 OG 字段（§4 新闻 SEO）。 */
@@ -369,6 +387,111 @@ export function itemListJsonLd(
       position: i + 1,
       name: it.name,
       url: abs(it.path),
+    })),
+  };
+}
+
+/**
+ * 首页实体图：CollectionPage + ItemList（GEO：首页此前只有站点级实体，没有任何
+ * 内容类型、作者和日期，AI 抽取器无法判断这页讲什么、多新）。
+ *
+ * - CollectionPage.dateModified 取首页所列文章里最新的发布时间——首页的「更新时间」
+ *   就是最新一篇上榜的时间，是真实值，不是渲染时刻。
+ * - ItemList 的每一项是一篇文章的摘要实体（标题/链接/发布时间/作者/封面），@id 与
+ *   文章详情页 NewsArticle 的 @id 相同，抽取器能把两处合并成同一个实体。
+ * - 作者只在有作者实体（有作者页可链）时输出 url；不输出 sameAs——作者是站内笔名，
+ *   没有对应的外部主页，填了就是造假。
+ */
+export function homeGraphJsonLd(
+  items: ArticleListItem[],
+  global: GlobalSettings | null,
+  description?: string | null,
+): Record<string, unknown> {
+  const url = abs('/');
+  const siteName = global?.siteName ?? 'News Portal';
+  const seen = new Set<string>();
+  const list = items.filter((a) => {
+    if (!a.slug || !a.channel?.slug || seen.has(a.documentId)) return false;
+    seen.add(a.documentId);
+    return true;
+  });
+  const publishedOf = (a: ArticleListItem) => a.publishAt ?? a.publishedAt ?? a.createdAt;
+  const latest = list
+    .map(publishedOf)
+    .filter((d): d is string => Boolean(d))
+    .sort()
+    .pop();
+
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        '@id': pageEntityId(url, 'webpage'),
+        url,
+        name: siteName,
+        description: description ?? undefined,
+        inLanguage: SITE_LOCALE,
+        isPartOf: { '@id': ENTITY_ID.website },
+        about: { '@id': ENTITY_ID.organization },
+        dateModified: latest,
+        mainEntity: { '@id': pageEntityId(url, 'itemlist') },
+      },
+      {
+        '@type': 'ItemList',
+        '@id': pageEntityId(url, 'itemlist'),
+        name: `${siteName}最新内容`,
+        numberOfItems: list.length,
+        itemListElement: list.map((a, i) => {
+          const articleUrl = abs(`/${a.channel!.slug}/${a.slug}`);
+          const image = mediaUrl(a.cover);
+          const authorName = (a.authorRef?.name ?? a.author ?? '').trim();
+          return {
+            '@type': 'ListItem',
+            position: i + 1,
+            item: {
+              '@type': 'NewsArticle',
+              '@id': pageEntityId(articleUrl, 'article'),
+              url: articleUrl,
+              headline: a.title,
+              image: image ? [image] : undefined,
+              datePublished: publishedOf(a),
+              dateModified: a.updatedAt,
+              articleSection: a.channel!.name,
+              author: authorName
+                ? {
+                    '@type': 'Person',
+                    name: authorName,
+                    url: a.authorRef?.slug ? abs(`/author/${a.authorRef.slug}`) : undefined,
+                  }
+                : { '@id': ENTITY_ID.organization },
+              publisher: { '@id': ENTITY_ID.organization },
+            },
+          };
+        }),
+      },
+    ],
+  };
+}
+
+/**
+ * FAQPage（GEO：问答是最容易被 AI 直接摘用的内容形态）。
+ * 只描述页面上真实可见的问答——调用方传入的 qa 必须和渲染出来的一致。
+ */
+export function faqJsonLd(
+  qa: Array<{ q: string; a: string }>,
+  path: string,
+): Record<string, unknown> {
+  const url = abs(path);
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    '@id': pageEntityId(url, 'faq'),
+    mainEntityOfPage: { '@id': pageEntityId(url, 'webpage') },
+    mainEntity: qa.map(({ q, a }) => ({
+      '@type': 'Question',
+      name: q,
+      acceptedAnswer: { '@type': 'Answer', text: a },
     })),
   };
 }

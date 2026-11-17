@@ -18,7 +18,14 @@ import { AdRotator } from './AdRotator';
  *   点击跳主域名），否则不渲染（不留空位）。
  * - 容器按格式固定宽高比，加载前即预留高度 → CLS≈0。
  */
-export async function AdSlotBanner({ slotKey }: { slotKey: string }) {
+export async function AdSlotBanner({
+  slotKey,
+  priority = false,
+}: {
+  slotKey: string;
+  /** 首屏位置传 true：图片不懒加载 + fetchpriority=high（它可能是 LCP 元素）。非首屏不要传 */
+  priority?: boolean;
+}) {
   const slot = await getAdSlot(slotKey);
   const img = slot ? mediaUrl(slot.image) : null;
   const fmt = formatForSlot(slotKey, slot?.format);
@@ -42,7 +49,11 @@ export async function AdSlotBanner({ slotKey }: { slotKey: string }) {
               alt={imageAlt(slot.image, slot.title ? `广告 - ${slot.title}` : '广告')}
               fill
               sizes={spec.sizes}
-              loading="lazy"
+              // priority 与 loading 互斥：首屏位用 priority（eager + preload），其余懒加载。
+              // Next 15 的 priority 不会自动加 fetchpriority，需显式给（同 ArticleCard 的 Cover）
+              priority={priority}
+              loading={priority ? undefined : 'lazy'}
+              fetchPriority={priority ? 'high' : undefined}
               className="object-cover"
             />
             <span className="absolute bottom-1 right-1 rounded bg-black/40 px-1 text-[10px] text-white">
@@ -71,6 +82,7 @@ export async function AdSlotBanner({ slotKey }: { slotKey: string }) {
             srcs={adDemoSrcs(slotKey, fmt)}
             alt={`广告展位示例 - ${slotKey}`}
             seed={slotSeed(slotKey)}
+            priority={priority}
           />
           <span className="absolute bottom-1 right-1 rounded bg-black/40 px-1 text-[10px] text-white">
             广告
