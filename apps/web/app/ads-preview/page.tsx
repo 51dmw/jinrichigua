@@ -87,21 +87,21 @@ async function SlotCard({ entry }: { entry: AdSlotEntry }) {
           {format.width}×{format.height}
         </span>
         {demo > 1 ? (
-          <span className="rounded bg-brand/10 px-1.5 py-0.5 text-[11px] text-brand">
+          <span className="rounded bg-brand/10 px-1.5 py-0.5 text-xs text-brand">
             {demo} 张轮播
           </span>
         ) : null}
         {live?.image ? (
-          <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] text-green-700">
+          <span className="rounded bg-green-50 px-1.5 py-0.5 text-xs text-green-700">
             后台已有创意
           </span>
         ) : (
-          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-500">
+          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
             后台未投放
           </span>
         )}
         {format.visibility ? (
-          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-700">
+          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700">
             {format.visibility === 'lg:hidden' ? '仅移动端' : '仅桌面端'}
           </span>
         ) : null}
@@ -120,7 +120,7 @@ async function SlotCard({ entry }: { entry: AdSlotEntry }) {
       >
         <div className="relative w-full" style={{ aspectRatio: format.ratio }}>
           <AdRotator srcs={srcs} alt={`广告展位示例 - ${slotKey}`} seed={slotSeed(slotKey)} />
-          <span className="absolute bottom-1 right-1 rounded bg-black/40 px-1 text-[10px] text-white">
+          <span className="absolute bottom-1 right-1 rounded bg-black/40 px-1 text-xs text-white">
             广告
           </span>
         </div>

@@ -54,7 +54,7 @@ export function CardTagRow({ article }: { article: ArticleListItem }) {
         <Link
           key={t.slug}
           href={`/tag/${t.slug}`}
-          className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] leading-4 text-brand hover:bg-brand hover:text-white"
+          className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 text-xs leading-4 text-brand hover:bg-brand hover:text-white"
         >
           {t.name}
         </Link>
@@ -145,7 +145,7 @@ export function ArticleCard({
         <article className="flex items-start gap-2">
           <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" aria-hidden />
           <div className="min-w-0">
-            <Heading className="line-clamp-1 text-[15px] font-medium leading-snug text-gray-900">
+            <Heading className="line-clamp-1 text-base font-medium leading-snug text-gray-900">
               {article.title}
             </Heading>
             {article.summary ? (
@@ -167,7 +167,7 @@ export function ArticleCard({
           </div>
           {/* 内边距放外层：line-clamp 按 padding-box 裁切，py 留在标题上会露出第 3 行的上半截 */}
           <div className="px-2 py-2">
-            <Heading className="line-clamp-2 text-sm font-medium leading-snug text-gray-900">
+            <Heading className="line-clamp-2 text-[15px] font-semibold leading-snug text-gray-900">
               {article.title}
             </Heading>
           </div>
@@ -184,7 +184,7 @@ export function ArticleCard({
           <div className="relative aspect-[4/3] w-full overflow-hidden rounded">
             <Cover a={article} sizes="(max-width: 640px) 33vw, 200px" />
           </div>
-          <Heading className="mt-1.5 line-clamp-2 text-xs leading-snug text-gray-900">{article.title}</Heading>
+          <Heading className="mt-1.5 line-clamp-2 text-sm leading-snug text-gray-900">{article.title}</Heading>
         </article>
       </Link>
     );
@@ -196,7 +196,7 @@ export function ArticleCard({
   return (
     <article className="relative flex items-stretch gap-3 py-2.5">
       <div className="min-w-0 flex-1">
-        <Heading className="line-clamp-2 text-base font-medium leading-snug text-gray-900">
+        <Heading className="line-clamp-2 text-base font-semibold leading-snug text-gray-900">
           <Link href={href(article)} className="after:absolute after:inset-0">
             {article.title}
           </Link>

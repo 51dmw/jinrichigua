@@ -18,7 +18,7 @@ export function CoverPlaceholder({ wordmark = true }: { wordmark?: boolean }) {
         </g>
       </svg>
       {wordmark ? (
-        <span className="px-1 text-center text-[10px] font-medium leading-none text-[#c1272d]">
+        <span className="px-1 text-center text-xs font-medium leading-none text-[#c1272d]">
           今日吃瓜
         </span>
       ) : null}

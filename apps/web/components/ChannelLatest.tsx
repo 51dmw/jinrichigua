@@ -48,7 +48,7 @@ export async function ChannelLatest({
                     <CoverPlaceholder wordmark={false} />
                   )}
                 </div>
-                <span className="line-clamp-2 flex-1 self-center text-sm leading-snug text-gray-800">
+                <span className="line-clamp-2 flex-1 self-center text-[15px] leading-snug text-gray-900">
                   {a.title}
                 </span>
               </Link>

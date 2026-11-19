@@ -43,7 +43,7 @@ export function AdAnchorBar({
           aria-label={`广告展位（示例）：${title ?? '推广'}`}
         >
           <AdRotator srcs={demoSrcs} alt={alt ?? '广告展位示例'} seed={demoSeed ?? 0} />
-          <span className="absolute bottom-0.5 left-0.5 rounded bg-black/40 px-1 text-[10px] text-white">
+          <span className="absolute bottom-0.5 left-0.5 rounded bg-black/40 px-1 text-xs text-white">
             广告
           </span>
         </a>
@@ -59,7 +59,7 @@ export function AdAnchorBar({
           {src ? (
             <Image src={src} alt={alt ?? '广告'} fill sizes="320px" className="object-cover" />
           ) : null}
-          <span className="absolute bottom-0.5 left-0.5 rounded bg-black/40 px-1 text-[10px] text-white">
+          <span className="absolute bottom-0.5 left-0.5 rounded bg-black/40 px-1 text-xs text-white">
             广告
           </span>
         </a>

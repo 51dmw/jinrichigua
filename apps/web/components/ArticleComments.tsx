@@ -258,7 +258,7 @@ export function ArticleComments({
                 <div className="mb-0.5 flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-700">{c.authorName || '匿名'}</span>
                   {c.pending ? (
-                    <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-600">
+                    <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-600">
                       审核中
                     </span>
                   ) : null}

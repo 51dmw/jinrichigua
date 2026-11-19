@@ -56,7 +56,7 @@ export async function AdSlotBanner({
               fetchPriority={priority ? 'high' : undefined}
               className="object-cover"
             />
-            <span className="absolute bottom-1 right-1 rounded bg-black/40 px-1 text-[10px] text-white">
+            <span className="absolute bottom-1 right-1 rounded bg-black/40 px-1 text-xs text-white">
               广告
             </span>
           </div>
@@ -84,7 +84,7 @@ export async function AdSlotBanner({
             seed={slotSeed(slotKey)}
             priority={priority}
           />
-          <span className="absolute bottom-1 right-1 rounded bg-black/40 px-1 text-[10px] text-white">
+          <span className="absolute bottom-1 right-1 rounded bg-black/40 px-1 text-xs text-white">
             广告
           </span>
         </div>

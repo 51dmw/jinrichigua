@@ -7,24 +7,24 @@
 }
 
 body {
-  @apply bg-paper text-gray-900 antialiased;
+  @apply bg-paper text-gray-900;
 }
 
 /* 文章正文排版（最小版） */
 .article-body {
-  @apply text-[15px] leading-7 text-gray-800;
+  @apply text-[17px] leading-8 text-gray-900;
 }
 .article-body h1 {
-  @apply mb-3 mt-5 text-xl font-bold;
+  @apply mb-3 mt-6 text-2xl font-bold;
 }
 .article-body h2 {
-  @apply mb-2 mt-4 text-lg font-bold;
+  @apply mb-2 mt-5 text-xl font-bold;
 }
 .article-body h3 {
-  @apply mb-2 mt-4 text-base font-bold;
+  @apply mb-2 mt-4 text-lg font-bold;
 }
 .article-body h4 {
-  @apply mb-2 mt-3 text-[15px] font-bold;
+  @apply mb-2 mt-3 text-[17px] font-bold;
 }
 .article-body p {
   @apply my-3;

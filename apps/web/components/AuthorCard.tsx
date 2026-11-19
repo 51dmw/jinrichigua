@@ -34,7 +34,7 @@ export function AuthorCard({ author }: { author: A }) {
             {author.name}
           </Link>
           {author.role ? (
-            <span className="rounded bg-white px-1.5 py-0.5 text-[10px] text-gray-500">
+            <span className="rounded bg-white px-1.5 py-0.5 text-xs text-gray-500">
               {author.role}
             </span>
           ) : null}

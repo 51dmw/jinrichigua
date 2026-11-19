@@ -111,7 +111,7 @@ export default async function ArticlePage({ params }: { params: Params }) {
         ]}
       />
 
-      <h1 className="text-xl font-bold leading-snug text-gray-900">{article.title}</h1>
+      <h1 className="text-2xl font-bold leading-snug text-gray-900">{article.title}</h1>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-3 text-xs text-gray-500">
         {published ? <time dateTime={published}>{formatDate(published)}</time> : null}

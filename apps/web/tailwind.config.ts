@@ -34,6 +34,11 @@ const config: Config = {
           'sans-serif',
         ],
       },
+      // 全站最小字号 13px：text-xs 从 Tailwind 默认的 12px 抬到 13px。
+      // 不要再用 text-[10px] / text-[11px] 之类更小的任意值。
+      fontSize: {
+        xs: ['13px', { lineHeight: '18px' }],
+      },
       maxWidth: {
         screen: '640px', // 移动优先：内容主列宽
       },
