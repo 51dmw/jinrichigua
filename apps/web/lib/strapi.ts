@@ -114,6 +114,23 @@ export async function getChannelBySlug(slug: string): Promise<Channel | null> {
   return json.data?.[0] ?? null;
 }
 
+/**
+ * 有文章的全部顶级频道（供 llms.txt）。与导航不同：不看 isNav，
+ * 不在导航里但有内容的频道（如「历史旧瓜」）也要列给大模型；空频道不列（它们是 noindex）。
+ */
+export async function getContentChannels(): Promise<Channel[]> {
+  try {
+    const json = await strapiGet<StrapiListResponse<Channel>>(
+      `/channels?filters[parent][$null]=true&filters[articles][documentId][$notNull]=true` +
+        `&sort=order:asc&pagination[pageSize]=100`,
+      { tags: [TAGS.channels] },
+    );
+    return json.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
 /** 有文章的频道 slug（供 sitemap / 预渲染——空频道不入站点地图、noindex 处理见 channelMeta）。 */
 export async function getAllChannelSlugs(): Promise<string[]> {
   try {
@@ -651,6 +668,38 @@ export async function getArticleCount(): Promise<number> {
     const json = await strapiGet<StrapiListResponse<{ slug: string }>>(
       `/articles?fields[0]=slug&pagination[pageSize]=1`,
       { tags: [TAGS.articles], revalidate: 300 },
+    );
+    return json.meta.pagination?.total ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * 最近 N 天发布的文章数（供 llms.txt 报告更新频率）。
+ * 起点对齐到 UTC 零点：请求 URL 一天内不变，才能命中 fetch 缓存。
+ */
+export async function getArticleCountSinceDays(days: number): Promise<number> {
+  const since = new Date(Date.now() - days * 86_400_000);
+  since.setUTCHours(0, 0, 0, 0);
+  try {
+    const json = await strapiGet<StrapiListResponse<{ slug: string }>>(
+      `/articles?fields[0]=slug&pagination[pageSize]=1` +
+        `&filters[publishedAt][$gte]=${since.toISOString()}`,
+      { tags: [TAGS.articles], revalidate: 3600 },
+    );
+    return json.meta.pagination?.total ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** 标签总数（供 llms.txt）。 */
+export async function getTagCount(): Promise<number> {
+  try {
+    const json = await strapiGet<StrapiListResponse<{ slug: string }>>(
+      `/tags?fields[0]=slug&pagination[pageSize]=1`,
+      { tags: ['tags'], revalidate: 3600 },
     );
     return json.meta.pagination?.total ?? 0;
   } catch {
