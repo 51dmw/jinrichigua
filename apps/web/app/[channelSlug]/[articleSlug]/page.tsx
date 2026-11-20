@@ -11,7 +11,7 @@ import {
   mediaUrl,
   imageAlt,
 } from '@/lib/strapi';
-import { newsArticleJsonLd, resolveMetadata } from '@/lib/seo';
+import { extractArticleFaq, faqJsonLd, newsArticleJsonLd, resolveMetadata } from '@/lib/seo';
 import { renderArticleMarkdown } from '@/lib/markdown';
 import { JsonLd } from '@/components/JsonLd';
 import { Breadcrumb } from '@/components/Breadcrumb';
@@ -89,6 +89,8 @@ export default async function ArticlePage({ params }: { params: Params }) {
   const cover = mediaUrl(article.cover);
   const published = article.publishAt ?? article.publishedAt;
   const newsLd = newsArticleJsonLd(article, global, path);
+  // 正文末尾有成型问答小节时才输出 FAQPage（与页面可见内容一致）
+  const faq = extractArticleFaq(article.content);
   // 相关推荐按当前文章标签算；与相邻文章并行取
   const tagSlugs = (article.tags ?? []).map((t) => t.slug);
   const [adjacent, related] = await Promise.all([
@@ -101,6 +103,7 @@ export default async function ArticlePage({ params }: { params: Params }) {
       <div className="min-w-0">
       <article className="rounded-lg bg-white p-4">
       <JsonLd data={newsLd} />
+      {faq.length > 0 ? <JsonLd data={faqJsonLd(faq, path)} /> : null}
 
       <Breadcrumb
         tone="light"

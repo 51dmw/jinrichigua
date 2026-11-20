@@ -80,8 +80,8 @@ export async function TagView({ slug, page }: { slug: string; page: number }) {
           {page > 1 ? `${name} - 第 ${page} 页` : name}
         </h1>
 
-        {/* 标签简介（SEO：缓解聚合页薄内容） */}
-        {tag.description ? (
+        {/* 标签简介（SEO：缓解聚合页薄内容）；只在第 1 页出，翻页不重复同一段文字（与频道页一致） */}
+        {tag.description && page === 1 ? (
           <p className="mb-3 rounded-lg bg-white p-3 text-sm leading-6 text-gray-600">
             {tag.description}
           </p>

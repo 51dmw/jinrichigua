@@ -495,3 +495,48 @@ export function faqJsonLd(
     })),
   };
 }
+
+const FAQ_MIN_PAIRS = 3;
+
+/**
+ * 从文章正文里取出文末的问答小节，供 faqJsonLd 使用。
+ * 只认一种写法：正文最后一个小节里，独占一行的 `**问题？**` + 紧随其后的段落作答。
+ * 小节标题每篇叫法不同（管线特意要求换着叫），所以按结构识别而不是按标题措辞；
+ * 文末「还没有答案的几个问题」那种只有问句的列表不会被当成 FAQ。不足 3 组返回空数组。
+ */
+export function extractArticleFaq(content: string | null | undefined): Array<{ q: string; a: string }> {
+  if (!content) return [];
+  const sections = content.split(/\n##+ /);
+  if (sections.length < 2) return [];
+  const plain = (s: string) =>
+    s
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/\*\*|`/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  const qa: Array<{ q: string; a: string }> = [];
+  let q: string | null = null;
+  let answer: string[] = [];
+  const flush = () => {
+    const a = plain(answer.join(' '));
+    if (q && a) qa.push({ q, a });
+    q = null;
+    answer = [];
+  };
+  // 第一行是小节标题，跳过
+  for (const raw of sections[sections.length - 1].split('\n').slice(1)) {
+    const line = raw.trim();
+    const m = /^\*\*(.+[？?])\*\*$/.exec(line);
+    if (m) {
+      flush();
+      q = plain(m[1]);
+    } else if (q && line) {
+      // 问答之后出现的引流/相关阅读行不算答案的一部分
+      if (/^\*\*|^[-*] |^#|👉/.test(line)) flush();
+      else answer.push(line);
+    }
+  }
+  flush();
+  return qa.length >= FAQ_MIN_PAIRS ? qa : [];
+}
