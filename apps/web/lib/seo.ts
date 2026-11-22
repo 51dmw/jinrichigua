@@ -330,6 +330,16 @@ export function siteGraphJsonLd(global: GlobalSettings | null): Record<string, u
     name: siteName,
     url: SITE_URL,
     ...(logo ? { logo: { '@id': ENTITY_ID.logo }, image: { '@id': ENTITY_ID.logo } } : {}),
+    // 只指向站内真实存在的页面（页脚「内容政策」「联络我们」）。邮箱以联络页为准，不在代码里另写一份。
+    // sameAs 没有：本站目前没有官方社交账号，有了再加，别填占位。
+    ethicsPolicy: `${SITE_URL}/info/policy`,
+    publishingPrinciples: `${SITE_URL}/info/policy`,
+    contactPoint: {
+      '@type': 'ContactPoint',
+      contactType: 'editorial',
+      url: `${SITE_URL}/info/contact`,
+      availableLanguage: SITE_LOCALE,
+    },
   });
 
   if (logo) {
