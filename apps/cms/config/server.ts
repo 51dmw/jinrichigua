@@ -20,38 +20,52 @@ export default ({ env }) => ({
     tasks: {
       // 每分钟：把「已审核通过(approved) 且 publishAt 到点」但尚未发布的文章自动发布。
       '*/1 * * * *': async ({ strapi }: { strapi: any }) => {
-        const UID = 'api::article.article';
-        const now = new Date().toISOString();
-        let due: Array<{ documentId: string }> = [];
+        // 防重入：上一轮还没跑完就跳过。下面是「先查有没有已发布版、没有就发布」，
+        // 两轮重叠时会各发一遍，同一篇文章出现多条已发布记录。
+        if (scheduledPublishRunning) return;
+        scheduledPublishRunning = true;
         try {
-          due = await strapi.documents(UID).findMany({
-            status: 'draft',
-            filters: { reviewState: 'approved', publishAt: { $lte: now } },
-            fields: ['documentId'],
-            pagination: { pageSize: 100 },
-          });
-        } catch (e) {
-          strapi.log.warn(`[cron] query scheduled failed: ${(e as Error).message}`);
-          return;
+          await publishDueArticles(strapi);
+        } finally {
+          scheduledPublishRunning = false;
         }
-        let count = 0;
-        for (const d of due) {
-          try {
-            const pub = await strapi
-              .documents(UID)
-              .findOne({ documentId: d.documentId, status: 'published' });
-            if (!pub) {
-              await strapi.documents(UID).publish({ documentId: d.documentId });
-              count += 1;
-            }
-          } catch (e) {
-            strapi.log.warn(`[cron] publish ${d.documentId} failed: ${(e as Error).message}`);
-          }
-        }
-        if (count > 0) strapi.log.info(`[cron] 定时发布 ${count} 篇`);
       },
       // 友链统计第2期：每日 Shanghai 01:30 聚合昨天 + 回补 + 清理 30 天前（详见 config/cron.ts）。
       ...friendLinkCron,
     },
   },
 });
+
+let scheduledPublishRunning = false;
+
+async function publishDueArticles(strapi: any) {
+  const UID = 'api::article.article';
+  const now = new Date().toISOString();
+  let due: Array<{ documentId: string }> = [];
+  try {
+    due = await strapi.documents(UID).findMany({
+      status: 'draft',
+      filters: { reviewState: 'approved', publishAt: { $lte: now } },
+      fields: ['documentId'],
+      pagination: { pageSize: 100 },
+    });
+  } catch (e) {
+    strapi.log.warn(`[cron] query scheduled failed: ${(e as Error).message}`);
+    return;
+  }
+  let count = 0;
+  for (const d of due) {
+    try {
+      const pub = await strapi
+        .documents(UID)
+        .findOne({ documentId: d.documentId, status: 'published' });
+      if (!pub) {
+        await strapi.documents(UID).publish({ documentId: d.documentId });
+        count += 1;
+      }
+    } catch (e) {
+      strapi.log.warn(`[cron] publish ${d.documentId} failed: ${(e as Error).message}`);
+    }
+  }
+  if (count > 0) strapi.log.info(`[cron] 定时发布 ${count} 篇`);
+}

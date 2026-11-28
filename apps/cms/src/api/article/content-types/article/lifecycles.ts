@@ -74,6 +74,8 @@ async function resolveArticleRef(strapi: any, result: AnyResult): Promise<Articl
   return ref;
 }
 
+const REVALIDATE_TIMEOUT_MS = 10_000;
+
 async function pingRevalidate(strapi: any, ref: ArticleRef) {
   const url = process.env.WEB_REVALIDATE_URL;
   const token = process.env.WEB_REVALIDATE_TOKEN;
@@ -94,6 +96,9 @@ async function pingRevalidate(strapi: any, ref: ArticleRef) {
         published: ref.published,
       }),
       redirect: 'manual',
+      // 必须有超时：本函数在 afterCreate/afterUpdate 里被 await，前台挂死时不超时会把
+      // publish() 一直卡住，定时发布下一轮就会把同一篇再发一遍（2026-11-28 出过 31 条重复）。
+      signal: AbortSignal.timeout(REVALIDATE_TIMEOUT_MS),
     });
     if (!res.ok) {
       strapi?.log?.warn(
